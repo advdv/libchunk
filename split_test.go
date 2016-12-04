@@ -47,9 +47,9 @@ func tempDB(t *testing.T) (db *bolt.DB) {
 	return db
 }
 
-func TestSmallNonRandomData(t *testing.T) {
+func TestSplitJoinSmallNonRandom(t *testing.T) {
 	db := tempDB(t)
-	input := []byte("ablsa") //@TODO find somall content that generates multiple chunks
+	input := []byte("foo bar") //@TODO find somall content that generates multiple chunks
 	output := bytes.NewBuffer(nil)
 
 	pr, pw := io.Pipe()
@@ -70,6 +70,9 @@ func TestSmallNonRandomData(t *testing.T) {
 		t.Errorf("expected joined output (len %d) to be the same as input (len %d)", output.Len(), len(input))
 	}
 
+	//assert encryption at rest
+	//assert throughput
+
 	//assert:
 	//  - assert writer output
 	//  - different polynomials generate different
@@ -77,16 +80,6 @@ func TestSmallNonRandomData(t *testing.T) {
 	//    - encrypted content
 	//  - different secret parts generate random noise
 	//  -assert multiple chunks being outputed
-
-}
-
-func Test5MiBRandomData(t *testing.T) {
-	// r := io.LimitReader(rand.Reader, 10)
-	// w := bytes.NewBuffer(nil)
-	// err := libchunk.Split(tempDB(t), secret, r, w)
-	// if err != nil {
-	// 	t.Fatalf("failed to split random file 1: %v", err)
-	// }
 
 	//assert db file size
 	//assert buffer content
