@@ -1,8 +1,12 @@
-hash: d6872759651258b6ed2670a61477f090e9c1d4b373eb97e8e69cab432c37c785
-updated: 2016-12-04T15:20:46.542363133+01:00
+hash: 9b9de00dad6434a4eb20abb221734f5ffdf76bd1170bd2c7624248119cc46ee3
+updated: 2016-12-06T22:53:19.952071893+01:00
 imports:
 - name: github.com/boltdb/bolt
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
 - name: github.com/restic/chunker
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
+- name: golang.org/x/sys
+  version: 478fcf54317e52ab69f40bb4c7a1520288d7f7ea
+  subpackages:
+  - unix
 testImports: []

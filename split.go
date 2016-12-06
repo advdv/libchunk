@@ -32,7 +32,7 @@ var (
 type Secret [32]byte
 
 //K is the key of a single chunk it is both used to store each
-//piece as well as to encryp it
+//piece as well as to encrypt it
 type K [32]byte
 
 //Returns the key encoded such that it is human readable, with only

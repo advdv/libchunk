@@ -1,4 +1,4 @@
-package: github.com/nerdalize/git-bits
+package: github.com/advanderveer/libchunk
 import:
 - package: github.com/restic/chunker                #content-based chunking
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
