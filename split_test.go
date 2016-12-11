@@ -28,6 +28,92 @@ type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
 }
 
+//Store holds chunks
+type Store interface {
+	Put(k [KeySize]byte, chunk []byte) error
+	Get(k [KeySize]byte) (chunk []byte, err error)
+}
+
+//RemoteStore holds chunks at a remote location such
+//that it becomes efficient to keep an up-to-date local
+//index to prevent unnesseary interactions
+type RemoteStore interface {
+	//@TODO think of a remote store interface that uses
+	//A local store as an index
+}
+
+//
+// Test types
+//
+
+type fsStore string
+
+func (s fsStore) Put(k [KeySize]byte, chunk []byte) error {
+	f, err := os.OpenFile(filepath.Join(string(s), fmt.Sprintf("%x", k)), os.O_CREATE|os.O_RDWR|os.O_EXCL, 0777)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	defer f.Close()
+	_, err = f.Write(chunk)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s fsStore) Get(k [KeySize]byte) ([]byte, error) {
+	kpath := filepath.Join(string(s), fmt.Sprintf("%x", k))
+	f, err := os.OpenFile(kpath, os.O_RDONLY, 0777)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+	chunk, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return chunk, nil
+}
+
+type boltStore struct {
+	db         *bolt.DB
+	bucketName []byte
+}
+
+func (s *boltStore) Put(k [KeySize]byte, chunk []byte) (err error) {
+	return s.db.Batch(func(tx *bolt.Tx) error {
+		b, _ := tx.CreateBucketIfNotExists(s.bucketName)
+		existing := b.Get(k[:])
+		if existing != nil {
+			return nil
+		}
+
+		return b.Put(k[:], chunk)
+	})
+}
+
+func (s *boltStore) Get(k [KeySize]byte) (chunk []byte, err error) {
+	return chunk, s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucketName)
+		v := b.Get(k[:])
+		if v == nil || len(v) < 1 {
+			return fmt.Errorf("not found")
+		}
+
+		chunk = make([]byte, len(v))
+		copy(chunk, v)
+		return nil
+	})
+}
+
 type quiter interface {
 	Fatalf(format string, args ...interface{})
 }
@@ -62,11 +148,9 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 		err   error
 		block cipher.Block
 		aead  cipher.AEAD
-		db    *bolt.DB
 		hash  KeyFunc
 		chnkr Chunker
-
-		//@TODO add a (local)store interface: fs/bolt
+		store Store
 	)
 
 	boltSize = int64(1024 * 1024 * 1024)
@@ -81,7 +165,9 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 		return sha256.Sum256(b)
 	}
 
-	db, _ = bolt.Open(boltPath, 0777, nil)
+	db, _ := bolt.Open(boltPath, 0777, nil)
+	store = &boltStore{db, []byte("a")}
+
 	block, err = aes.NewCipher(secret[:])
 	if err != nil {
 		b.Fatalf("failed to create AES block cipher: %v", err)
@@ -123,11 +209,7 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 					go func() {
 						defer wg.Done()
 
-						err = db.Batch(func(tx *bolt.Tx) error {
-							b, _ := tx.CreateBucketIfNotExists([]byte("a"))
-							return b.Put(k[:], encrypted)
-						})
-
+						err = store.Put(k, encrypted)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -147,10 +229,13 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 		err   error
 		block cipher.Block
 		aead  cipher.AEAD
-		db    *bolt.DB
+		store Store
 	)
 
-	db, _ = bolt.Open(boltPath, 0777, nil)
+	db, _ := bolt.Open(boltPath, 0777, nil)
+
+	store = &boltStore{db, []byte("a")}
+
 	block, err = aes.NewCipher(secret[:])
 	if err != nil {
 		b.Fatalf("failed to create AES block cipher: %v", err)
@@ -172,19 +257,7 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 		defer os.Remove(outf.Name())
 
 		for _, k := range boltKeys {
-			var chunk []byte
-			err = db.View(func(tx *bolt.Tx) error {
-				b := tx.Bucket([]byte("a"))
-				v := b.Get(k[:])
-				if v == nil || len(v) < 1 {
-					return fmt.Errorf("not found")
-				}
-
-				chunk = make([]byte, len(v))
-				copy(chunk, v)
-				return nil
-			})
-
+			chunk, err := store.Get(k)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -215,6 +288,7 @@ func BenchmarkConcurrentChunkingSha2Disk(b *testing.B) {
 		aead  cipher.AEAD
 		hash  KeyFunc
 		chnkr Chunker
+		store Store
 	)
 
 	diskSize = int64(1024 * 1024 * 1024)
@@ -222,6 +296,8 @@ func BenchmarkConcurrentChunkingSha2Disk(b *testing.B) {
 	chnkr = chunker.New(r, secret.Pol())
 	buf := make([]byte, chunker.MaxSize)
 	diskDir, _ = ioutil.TempDir("", "libchunk")
+
+	store = fsStore(diskDir)
 
 	hash = func(b []byte) [KeySize]byte { return sha256.Sum256(b) }
 
@@ -261,17 +337,7 @@ func BenchmarkConcurrentChunkingSha2Disk(b *testing.B) {
 					go func() {
 						defer wg.Done()
 
-						f, err := os.OpenFile(filepath.Join(diskDir, fmt.Sprintf("%x", k)), os.O_CREATE|os.O_RDWR|os.O_EXCL, 0777)
-						if err != nil {
-							if os.IsExist(err) {
-								return
-							}
-
-							b.Fatal(err)
-						}
-
-						defer f.Close()
-						_, err = f.Write(encrypted)
+						err = store.Put(k, encrypted)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -291,6 +357,7 @@ func BenchmarkConcurrentChunkingSha2FromFS(b *testing.B) {
 		err   error
 		block cipher.Block
 		aead  cipher.AEAD
+		store Store
 	)
 
 	block, err = aes.NewCipher(secret[:])
@@ -303,6 +370,7 @@ func BenchmarkConcurrentChunkingSha2FromFS(b *testing.B) {
 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
 
+	store = fsStore(diskDir)
 	defer os.RemoveAll(diskDir)
 
 	b.ResetTimer()
@@ -313,16 +381,9 @@ func BenchmarkConcurrentChunkingSha2FromFS(b *testing.B) {
 		defer os.Remove(outf.Name())
 
 		for _, k := range diskKeys {
-			kpath := filepath.Join(diskDir, fmt.Sprintf("%x", k))
 
 			func() {
-				f, err := os.OpenFile(kpath, os.O_RDONLY, 0777)
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				defer f.Close()
-				chunk, err := ioutil.ReadAll(f)
+				chunk, err := store.Get(k)
 				if err != nil {
 					b.Fatal(err)
 				}
