@@ -1,6 +1,10 @@
 package: github.com/advanderveer/libchunk
+ignore:
+  - golang.org/x/sys #only used for solaris support
 import:
 - package: github.com/restic/chunker                #content-based chunking
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
 - package: github.com/boltdb/bolt                   #mmap embedded kv store
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
+- package: github.com/rlmcpherson/s3gof3r           #fast concurrent s3 uploads
+  version: bc1aca74326ad100d0aa82bfa9ce6e9278620750
