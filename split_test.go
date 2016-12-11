@@ -30,7 +30,11 @@ type Chunker interface {
 
 //Store holds chunks
 type Store interface {
+
+	//will do nothing if exists, must be atomic
 	Put(k [KeySize]byte, chunk []byte) error
+
+	//returns os.NotExist if the chunk doesnt exist
 	Get(k [KeySize]byte) (chunk []byte, err error)
 }
 
@@ -38,8 +42,10 @@ type Store interface {
 //that it becomes efficient to keep an up-to-date local
 //index to prevent unnesseary interactions
 type RemoteStore interface {
-	//@TODO think of a remote store interface that uses
-	//A local store as an index
+	Store
+
+	//update the local index
+	Index() error
 }
 
 //
@@ -105,7 +111,7 @@ func (s *boltStore) Get(k [KeySize]byte) (chunk []byte, err error) {
 		b := tx.Bucket(s.bucketName)
 		v := b.Get(k[:])
 		if v == nil || len(v) < 1 {
-			return fmt.Errorf("not found")
+			return os.ErrNotExist
 		}
 
 		chunk = make([]byte, len(v))
