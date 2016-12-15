@@ -6,5 +6,5 @@ import:
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
 - package: github.com/boltdb/bolt                   #mmap embedded kv store
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
-- package: github.com/rlmcpherson/s3gof3r           #fast concurrent s3 uploads
-  version: bc1aca74326ad100d0aa82bfa9ce6e9278620750
+- package: github.com/kr/s3                         #sign s3 http request
+  version: c070c8f9a8f0032d48f0d2a77d4e382788bd8a1d

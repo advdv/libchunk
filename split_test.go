@@ -2,6 +2,7 @@ package libchunk_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -45,7 +46,7 @@ type RemoteStore interface {
 	Store
 
 	//update the local index
-	Index() error
+	Index(ctx context.Context) error
 }
 
 //
