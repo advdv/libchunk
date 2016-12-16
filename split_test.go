@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/advanderveer/libchunk"
 	"github.com/boltdb/bolt"
+	"github.com/kr/s3"
 	"github.com/restic/chunker"
 )
 
@@ -108,8 +111,12 @@ func (s *boltStore) Put(k [KeySize]byte, chunk []byte) (err error) {
 }
 
 func (s *boltStore) Get(k [KeySize]byte) (chunk []byte, err error) {
-	return chunk, s.db.View(func(tx *bolt.Tx) error {
+	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucketName)
+		if b == nil {
+			return fmt.Errorf("bucket '%s' must first be created", string(s.bucketName))
+		}
+
 		v := b.Get(k[:])
 		if v == nil || len(v) < 1 {
 			return os.ErrNotExist
@@ -119,6 +126,8 @@ func (s *boltStore) Get(k [KeySize]byte) (chunk []byte, err error) {
 		copy(chunk, v)
 		return nil
 	})
+
+	return chunk, err
 }
 
 type quiter interface {
@@ -149,15 +158,15 @@ var boltSize int64
 var boltPath string
 var boltKeys [][32]byte
 var boltInput []byte
+var boltS Store
 
-func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
+func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
 	var (
 		err   error
 		block cipher.Block
 		aead  cipher.AEAD
 		hash  KeyFunc
 		chnkr Chunker
-		store Store
 	)
 
 	boltSize = int64(1024 * 1024 * 1024)
@@ -167,13 +176,14 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 	buf := make([]byte, chunker.MaxSize)
 	dir, _ := ioutil.TempDir("", "libchunk")
 	boltPath = filepath.Join(dir, "db.bolt")
+	fmt.Println("Boltdb:", boltPath)
 
 	hash = func(b []byte) [KeySize]byte {
 		return sha256.Sum256(b)
 	}
 
 	db, _ := bolt.Open(boltPath, 0777, nil)
-	store = &boltStore{db, []byte("a")}
+	boltS = &boltStore{db, []byte("a")}
 
 	block, err = aes.NewCipher(secret[:])
 	if err != nil {
@@ -184,8 +194,6 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 	if err != nil {
 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
-
-	defer db.Close()
 
 	b.ResetTimer()
 	b.SetBytes(int64(boltSize))
@@ -208,15 +216,12 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 				go func() {
 					defer wg.Done()
 					encrypted := aead.Seal(nil, k[:], chunk.Data, nil)
-					if bytes.Equal(encrypted, chunk.Data) {
-						b.Fatal("huh")
-					}
 
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
 
-						err = store.Put(k, encrypted)
+						err = boltS.Put(k, encrypted)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -231,17 +236,12 @@ func BenchmarkConcurrentChunkingSha2Bolt(b *testing.B) {
 	}
 }
 
-func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
+func BenchmarkBoltRandomReadsDecryptToFile(b *testing.B) {
 	var (
 		err   error
 		block cipher.Block
 		aead  cipher.AEAD
-		store Store
 	)
-
-	db, _ := bolt.Open(boltPath, 0777, nil)
-
-	store = &boltStore{db, []byte("a")}
 
 	block, err = aes.NewCipher(secret[:])
 	if err != nil {
@@ -253,9 +253,6 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
 
-	defer db.Close()
-	defer os.Remove(boltPath)
-
 	b.ResetTimer()
 	b.SetBytes(int64(boltSize))
 	for i := 0; i < b.N; i++ {
@@ -264,7 +261,7 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 		defer os.Remove(outf.Name())
 
 		for _, k := range boltKeys {
-			chunk, err := store.Get(k)
+			chunk, err := boltS.Get(k)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -274,8 +271,6 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			//@TODO benchmark output to file: benchmarked at 700Mb/s
-			//@TODO benchmark push to s3, goal: 1GB/s
 			_, err = outf.Write(plaintext)
 			if err != nil {
 				b.Fatal(err)
@@ -284,196 +279,243 @@ func BenchmarkConcurrentChunkingSha2FromBolt(b *testing.B) {
 	}
 }
 
-var diskDir string
-var diskKeys [][32]byte
-var diskSize int64
-
-func BenchmarkConcurrentChunkingSha2Disk(b *testing.B) {
-	var (
-		err   error
-		block cipher.Block
-		aead  cipher.AEAD
-		hash  KeyFunc
-		chnkr Chunker
-		store Store
-	)
-
-	diskSize = int64(1024 * 1024 * 1024)
-	r := bytes.NewReader(randb(diskSize))
-	chnkr = chunker.New(r, secret.Pol())
-	buf := make([]byte, chunker.MaxSize)
-	diskDir, _ = ioutil.TempDir("", "libchunk")
-
-	store = fsStore(diskDir)
-
-	hash = func(b []byte) [KeySize]byte { return sha256.Sum256(b) }
-
-	block, err = aes.NewCipher(secret[:])
-	if err != nil {
-		b.Fatalf("failed to create AES block cipher: %v", err)
-	}
-
-	aead, err = cipher.NewGCMWithNonceSize(block, sha256.Size)
-	if err != nil {
-		b.Fatalf("failed to setup GCM cipher mode: %v", err)
-	}
-
-	b.ResetTimer()
-	b.SetBytes(int64(diskSize))
-	for i := 0; i < b.N; i++ {
-		r.Seek(0, 0)
-		chnkr = chunker.New(r, secret.Pol())
-		wg := &sync.WaitGroup{}
-		for {
-			chunk, err := chnkr.Next(buf)
-			if err == io.EOF {
-				break
-			}
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				k := hash(chunk.Data)
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					encrypted := aead.Seal(nil, k[:], chunk.Data, nil)
-
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-
-						err = store.Put(k, encrypted)
-						if err != nil {
-							b.Fatal(err)
-						}
-
-						diskKeys = append(diskKeys, k)
-					}()
-				}()
-			}()
-		}
-
-		wg.Wait()
-	}
+func init() {
+	go func() {
+		log.Fatal(http.ListenAndServe("localhost:9000", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			io.Copy(ioutil.Discard, r.Body)
+		})))
+	}()
 }
 
-func BenchmarkConcurrentChunkingSha2FromFS(b *testing.B) {
-	var (
-		err   error
-		block cipher.Block
-		aead  cipher.AEAD
-		store Store
-	)
-
-	block, err = aes.NewCipher(secret[:])
-	if err != nil {
-		b.Fatalf("failed to create AES block cipher: %v", err)
-	}
-
-	aead, err = cipher.NewGCMWithNonceSize(block, sha256.Size)
-	if err != nil {
-		b.Fatalf("failed to setup GCM cipher mode: %v", err)
-	}
-
-	store = fsStore(diskDir)
-	defer os.RemoveAll(diskDir)
+func BenchmarkBoltRandomReadsMoveToLocalHTTP(b *testing.B) {
+	defer os.Remove(boltPath)
 
 	b.ResetTimer()
 	b.SetBytes(int64(boltSize))
 	for i := 0; i < b.N; i++ {
-		outf, _ := ioutil.TempFile("", "libchunk_")
-		defer outf.Close()
-		defer os.Remove(outf.Name())
+		client := http.Client{}
+		concurrency := 64
+		sem := make(chan bool, concurrency)
+		for _, k := range boltKeys {
+			chunk, err := boltS.Get(k)
+			if err != nil {
+				b.Fatal(err)
+			}
 
-		for _, k := range diskKeys {
-
-			func() {
-				chunk, err := store.Get(k)
+			sem <- true
+			go func(key libchunk.K, c []byte) {
+				defer func() { <-sem }()
+				req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost:9000/%x", key), bytes.NewReader(c))
 				if err != nil {
 					b.Fatal(err)
 				}
 
-				plaintext, err := aead.Open(nil, k[:], chunk, nil)
-				if err != nil {
+				s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
+				resp, err := client.Do(req)
+				if err != nil || resp == nil || resp.StatusCode != 200 {
 					b.Fatal(err)
 				}
 
-				_, err = outf.Write(plaintext)
-				if err != nil {
-					b.Fatal(err)
-				}
-			}()
+			}(k, chunk)
+		}
+
+		for i := 0; i < cap(sem); i++ {
+			sem <- true
 		}
 	}
-}
-
-func tempDB(t quiter) (p string, db *bolt.DB) {
-	dbdir, err := ioutil.TempDir("", "libchunk_")
-	if err != nil {
-		t.Fatalf("failed to create temp dir for db: %v", err)
-	}
-
-	dbpath := filepath.Join(dbdir, "db.bolt")
-	db, err = bolt.Open(dbpath, 0666, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		t.Fatalf("failed to open chunks database '%s': %v", dbpath, err)
-	}
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(libchunk.BucketNameChunks)
-		if err != nil {
-			return fmt.Errorf("failed to create bucket: %s", err)
-		}
-		return nil
-	})
-
-	if err != nil {
-		t.Fatalf("failed to create buckets: %v", err)
-	}
-
-	return dbpath, db
-}
-
-func TestSplitJoinSmallNonRandom(t *testing.T) {
-	_, db := tempDB(t)
-	input := []byte("foo bar") //@TODO find somall content that generates multiple chunks
-	output := bytes.NewBuffer(nil)
-
-	pr, pw := io.Pipe()
-	go func() {
-		defer pw.Close()
-		err := libchunk.Split(db, secret, bytes.NewBuffer(input), pw)
-		if err != nil {
-			t.Fatalf("failed to split: %v", err)
-		}
-	}()
-
-	err := libchunk.Join(db, secret, pr, output)
-	if err != nil {
-		t.Fatalf("failed to join: %v", err)
-	}
-
-	if !bytes.Equal(input, output.Bytes()) {
-		t.Errorf("expected joined output (len %d) to be the same as input (len %d)", output.Len(), len(input))
-	}
-
-	//assert encryption at rest
-	//assert throughput
-
-	//assert:
-	//  - assert writer output
-	//  - different polynomials generate different
-	//    - key
-	//    - encrypted content
-	//  - different secret parts generate random noise
-	//  -assert multiple chunks being outputed
-
-	//assert db file size
-	//assert buffer content
-	//assert chunks in db
-	//assert deduplication
-	//assert encryption
 
 }
+
+// var diskDir string
+// var diskKeys [][32]byte
+// var diskSize int64
+
+// func BenchmarkConcurrentChunkingSha2Disk(b *testing.B) {
+// 	var (
+// 		err   error
+// 		block cipher.Block
+// 		aead  cipher.AEAD
+// 		hash  KeyFunc
+// 		chnkr Chunker
+// 		store Store
+// 	)
+//
+// 	diskSize = int64(1024 * 1024 * 1024)
+// 	r := bytes.NewReader(randb(diskSize))
+// 	chnkr = chunker.New(r, secret.Pol())
+// 	buf := make([]byte, chunker.MaxSize)
+// 	diskDir, _ = ioutil.TempDir("", "libchunk")
+//
+// 	store = fsStore(diskDir)
+//
+// 	hash = func(b []byte) [KeySize]byte { return sha256.Sum256(b) }
+//
+// 	block, err = aes.NewCipher(secret[:])
+// 	if err != nil {
+// 		b.Fatalf("failed to create AES block cipher: %v", err)
+// 	}
+//
+// 	aead, err = cipher.NewGCMWithNonceSize(block, sha256.Size)
+// 	if err != nil {
+// 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
+// 	}
+//
+// 	b.ResetTimer()
+// 	b.SetBytes(int64(diskSize))
+// 	for i := 0; i < b.N; i++ {
+// 		r.Seek(0, 0)
+// 		chnkr = chunker.New(r, secret.Pol())
+// 		wg := &sync.WaitGroup{}
+// 		for {
+// 			chunk, err := chnkr.Next(buf)
+// 			if err == io.EOF {
+// 				break
+// 			}
+//
+// 			wg.Add(1)
+// 			go func() {
+// 				defer wg.Done()
+// 				k := hash(chunk.Data)
+//
+// 				wg.Add(1)
+// 				go func() {
+// 					defer wg.Done()
+// 					encrypted := aead.Seal(nil, k[:], chunk.Data, nil)
+//
+// 					wg.Add(1)
+// 					go func() {
+// 						defer wg.Done()
+//
+// 						err = store.Put(k, encrypted)
+// 						if err != nil {
+// 							b.Fatal(err)
+// 						}
+//
+// 						diskKeys = append(diskKeys, k)
+// 					}()
+// 				}()
+// 			}()
+// 		}
+//
+// 		wg.Wait()
+// 	}
+// }
+//
+// func BenchmarkConcurrentChunkingSha2FromFS(b *testing.B) {
+// 	var (
+// 		err   error
+// 		block cipher.Block
+// 		aead  cipher.AEAD
+// 		store Store
+// 	)
+//
+// 	block, err = aes.NewCipher(secret[:])
+// 	if err != nil {
+// 		b.Fatalf("failed to create AES block cipher: %v", err)
+// 	}
+//
+// 	aead, err = cipher.NewGCMWithNonceSize(block, sha256.Size)
+// 	if err != nil {
+// 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
+// 	}
+//
+// 	store = fsStore(diskDir)
+// 	defer os.RemoveAll(diskDir)
+//
+// 	b.ResetTimer()
+// 	b.SetBytes(int64(boltSize))
+// 	for i := 0; i < b.N; i++ {
+// 		outf, _ := ioutil.TempFile("", "libchunk_")
+// 		defer outf.Close()
+// 		defer os.Remove(outf.Name())
+//
+// 		for _, k := range diskKeys {
+//
+// 			func() {
+// 				chunk, err := store.Get(k)
+// 				if err != nil {
+// 					b.Fatal(err)
+// 				}
+//
+// 				plaintext, err := aead.Open(nil, k[:], chunk, nil)
+// 				if err != nil {
+// 					b.Fatal(err)
+// 				}
+//
+// 				_, err = outf.Write(plaintext)
+// 				if err != nil {
+// 					b.Fatal(err)
+// 				}
+// 			}()
+// 		}
+// 	}
+// }
+//
+// func tempDB(t quiter) (p string, db *bolt.DB) {
+// 	dbdir, err := ioutil.TempDir("", "libchunk_")
+// 	if err != nil {
+// 		t.Fatalf("failed to create temp dir for db: %v", err)
+// 	}
+//
+// 	dbpath := filepath.Join(dbdir, "db.bolt")
+// 	db, err = bolt.Open(dbpath, 0666, &bolt.Options{Timeout: 1 * time.Second})
+// 	if err != nil {
+// 		t.Fatalf("failed to open chunks database '%s': %v", dbpath, err)
+// 	}
+//
+// 	err = db.Update(func(tx *bolt.Tx) error {
+// 		_, err := tx.CreateBucketIfNotExists(libchunk.BucketNameChunks)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to create bucket: %s", err)
+// 		}
+// 		return nil
+// 	})
+//
+// 	if err != nil {
+// 		t.Fatalf("failed to create buckets: %v", err)
+// 	}
+//
+// 	return dbpath, db
+// }
+//
+// func TestSplitJoinSmallNonRandom(t *testing.T) {
+// 	_, db := tempDB(t)
+// 	input := []byte("foo bar") //@TODO find somall content that generates multiple chunks
+// 	output := bytes.NewBuffer(nil)
+//
+// 	pr, pw := io.Pipe()
+// 	go func() {
+// 		defer pw.Close()
+// 		err := libchunk.Split(db, secret, bytes.NewBuffer(input), pw)
+// 		if err != nil {
+// 			t.Fatalf("failed to split: %v", err)
+// 		}
+// 	}()
+//
+// 	err := libchunk.Join(db, secret, pr, output)
+// 	if err != nil {
+// 		t.Fatalf("failed to join: %v", err)
+// 	}
+//
+// 	if !bytes.Equal(input, output.Bytes()) {
+// 		t.Errorf("expected joined output (len %d) to be the same as input (len %d)", output.Len(), len(input))
+// 	}
+//
+// 	//assert encryption at rest
+// 	//assert throughput
+//
+// 	//assert:
+// 	//  - assert writer output
+// 	//  - different polynomials generate different
+// 	//    - key
+// 	//    - encrypted content
+// 	//  - different secret parts generate random noise
+// 	//  -assert multiple chunks being outputed
+//
+// 	//assert db file size
+// 	//assert buffer content
+// 	//assert chunks in db
+// 	//assert deduplication
+// 	//assert encryption
+//
+// }

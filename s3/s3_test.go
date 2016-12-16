@@ -49,7 +49,6 @@ func BenchmarkBoltToLocalNoOpHTTPServer(b *testing.B) {
 	b.SetBytes(size)
 	for i := 0; i < b.N; i++ {
 		client := http.Client{}
-
 		concurrency := 110
 		sem := make(chan bool, concurrency)
 		for _, chunk := range chunks {
