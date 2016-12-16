@@ -216,18 +216,12 @@ func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
 				go func() {
 					defer wg.Done()
 					encrypted := aead.Seal(nil, k[:], chunk.Data, nil)
+					err = boltS.Put(k, encrypted)
+					if err != nil {
+						b.Fatal(err)
+					}
 
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-
-						err = boltS.Put(k, encrypted)
-						if err != nil {
-							b.Fatal(err)
-						}
-
-						boltKeys = append(boltKeys, k)
-					}()
+					boltKeys = append(boltKeys, k)
 				}()
 			}()
 		}
@@ -236,7 +230,7 @@ func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
 	}
 }
 
-func BenchmarkBoltRandomReadsDecryptToFile(b *testing.B) {
+func BenchmarkBoltRandomReadsMergeToFile(b *testing.B) {
 	var (
 		err   error
 		block cipher.Block
@@ -287,25 +281,23 @@ func init() {
 	}()
 }
 
-func BenchmarkBoltRandomReadsMoveToLocalHTTP(b *testing.B) {
-	defer os.Remove(boltPath)
-
+func BenchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B) {
 	b.ResetTimer()
 	b.SetBytes(int64(boltSize))
 	for i := 0; i < b.N; i++ {
 		client := http.Client{}
 		concurrency := 64
 		sem := make(chan bool, concurrency)
-		for _, k := range boltKeys {
-			chunk, err := boltS.Get(k)
+		for _, key := range boltKeys {
+			chunk, err := boltS.Get(key)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			sem <- true
-			go func(key libchunk.K, c []byte) {
+			go func(k libchunk.K, c []byte) {
 				defer func() { <-sem }()
-				req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost:9000/%x", key), bytes.NewReader(c))
+				req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:9000/%x", k), bytes.NewReader(c))
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -316,14 +308,13 @@ func BenchmarkBoltRandomReadsMoveToLocalHTTP(b *testing.B) {
 					b.Fatal(err)
 				}
 
-			}(k, chunk)
+			}(key, chunk)
 		}
 
 		for i := 0; i < cap(sem); i++ {
 			sem <- true
 		}
 	}
-
 }
 
 // var diskDir string
