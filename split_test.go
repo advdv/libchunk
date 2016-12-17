@@ -1,8 +1,8 @@
 package libchunk_test
 
 import (
+	"bufio"
 	"bytes"
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -39,6 +39,45 @@ func (k K) ByteLine() []byte {
 	return []byte(fmt.Sprintf("%s\n", k))
 }
 
+func DecodeKey(b []byte) (k K, err error) {
+	data := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
+	_, err = base64.StdEncoding.Decode(data, b)
+	if err != nil {
+		return k, fmt.Errorf("failed to decode '%x' as base64: %v", b, err)
+	}
+
+	//check key length
+	k = K{}
+	if len(data) > len(k)+1 {
+		return k, fmt.Errorf("decoded chunk key '%x' has an invalid length %d, expected %d (or %d+1)", data, len(data), len(k), len(k))
+	}
+
+	//fill K and hand it over
+	copy(k[:], data[:KeySize])
+	return k, nil
+}
+
+func KeyScan(r io.Reader, fn func(k K) error) (err error) {
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		k, err := DecodeKey(s.Bytes())
+		if err != nil {
+			return fmt.Errorf("failed to decode chunk key: %v", err)
+		}
+
+		err = fn(k)
+		if err != nil {
+			return fmt.Errorf("failed to handle key '%s': %v", k, err)
+		}
+	}
+
+	if err := s.Err(); err != nil {
+		return fmt.Errorf("failed to scan chunk keys: %v", err)
+	}
+
+	return nil
+}
+
 type KeyFunc func([]byte) K
 
 type Chunker interface {
@@ -53,16 +92,6 @@ type Store interface {
 
 	//returns os.NotExist if the chunk doesnt exist
 	Get(k [KeySize]byte) (chunk []byte, err error)
-}
-
-//RemoteStore holds chunks at a remote location such
-//that it becomes efficient to keep an up-to-date local
-//index to prevent unnesseary interactions
-type RemoteStore interface {
-	Store
-
-	//update the local index
-	Index(ctx context.Context) error
 }
 
 //
@@ -113,7 +142,11 @@ type boltStore struct {
 
 func (s *boltStore) Put(k [KeySize]byte, chunk []byte) (err error) {
 	return s.db.Batch(func(tx *bolt.Tx) error {
-		b, _ := tx.CreateBucketIfNotExists(s.bucketName)
+		b, err := tx.CreateBucketIfNotExists(s.bucketName)
+		if err != nil {
+			return fmt.Errorf("failed to create-if-not-exist: %v", err)
+		}
+
 		existing := b.Get(k[:])
 		if existing != nil {
 			return nil
@@ -199,73 +232,80 @@ type Config struct {
 	Store        Store
 }
 
-func Split(r io.Reader, w io.Writer, conf Config) (err error) {
-	wg := &sync.WaitGroup{}
-	buf := make([]byte, conf.ChunkBufSize)
+func Split(r io.Reader, keyH func(k K) error, conf Config) (err error) {
+
+	//handle concurrent errors
 	errs := ErrCollector{}
 	errCh := make(chan error)
 	go errs.Collect(errCh)
 
-	for {
-		chunk, err := conf.Chunker.Next(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
+	//handle concurrent keys
+	keyCh := make(chan K)
+	go func() {
+		buf := make([]byte, conf.ChunkBufSize)
+		defer close(keyCh)
+		wg := &sync.WaitGroup{}
+		defer wg.Wait()
+		for {
+			chunk, err := conf.Chunker.Next(buf)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				errCh <- fmt.Errorf("failed to chunk input: %v", err)
 			}
-
-			errCh <- fmt.Errorf("failed to chunk input: %v", err)
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			k := conf.KeyFunc(chunk.Data)
 
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				encrypted := conf.AEAD.Seal(nil, k[:], chunk.Data, nil)
-				err = conf.Store.Put(k, encrypted)
-				if err != nil {
-					errCh <- fmt.Errorf("failed to put '%x' in store: %v", k, err)
-				}
 
-				_, err := w.Write(k.ByteLine())
-				if err != nil {
-					errCh <- fmt.Errorf("failed to output key '%x': %v", k, err)
-				}
+				k := conf.KeyFunc(chunk.Data)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
 
-				boltKeys = append(boltKeys, k)
+					encrypted := conf.AEAD.Seal(nil, k[:], chunk.Data, nil)
+					err = conf.Store.Put(k, encrypted)
+					if err != nil {
+						errCh <- fmt.Errorf("failed to put '%x' in store: %v", k, err)
+						return
+					}
+
+					keyCh <- k
+				}()
 			}()
-		}()
+		}
+	}()
+
+	//wait for all keys to be handled
+	for k := range keyCh {
+		if err = keyH(k); err != nil {
+			return fmt.Errorf("key handler failed for '%x': %v", k, err)
+		}
 	}
 
-	wg.Wait()
 	return errs.ErrorOrNil()
 }
 
-var boltSize int64
-var boltPath string
-var boltKeys [][32]byte
-var boltInput []byte
-var boltS Store
+// var boltSize int64
+// var boltPath string
+// var boltKeys []K
+// var boltInput []byte
+// var boltS Store
 
-func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
-	boltSize = int64(1024 * 1024 * 1024)
-	boltInput = randb(boltSize)
-	r := bytes.NewReader(boltInput)
-	// chnkr = chunker.New(r, secret.Pol())
-	// buf := make([]byte, chunker.MaxSize)
-	dir, _ := ioutil.TempDir("", "libchunk")
-	boltPath = filepath.Join(dir, "db.bolt")
-	fmt.Println("Boltdb:", boltPath)
-
-	hash := func(b []byte) K {
-		return sha256.Sum256(b)
+func BenchmarkBolt(b *testing.B) {
+	size := int64(1024 * 1024 * 1024)
+	dbdir, err := ioutil.TempDir("", "libchunk_db_")
+	if err != nil {
+		b.Fatal(err)
 	}
 
-	db, _ := bolt.Open(boltPath, 0777, nil)
-	boltS = &boltStore{db, []byte("a")}
+	dbpath := filepath.Join(dbdir, "db.bolt")
+	db, err := bolt.Open(dbpath, 0777, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	block, err := aes.NewCipher(secret[:])
 	if err != nil {
@@ -277,30 +317,88 @@ func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
 
-	b.ResetTimer()
-	b.SetBytes(int64(boltSize))
-	for i := 0; i < b.N; i++ {
-		r.Seek(0, 0)
-		buf := bytes.NewBuffer(nil)
-		err = Split(r, buf, Config{
-			ChunkBufSize: chunker.MaxSize,
-			Chunker:      chunker.New(r, secret.Pol()),
-			AEAD:         aead,
-			KeyFunc:      hash,
-			Store:        boltS,
+	conf := Config{
+		ChunkBufSize: chunker.MaxSize,
+		AEAD:         aead,
+		KeyFunc: func(b []byte) K {
+			return sha256.Sum256(b)
+		},
+		Store: &boltStore{db, []byte("a")},
+	}
+
+	defer db.Close()
+	defer os.RemoveAll(dbdir)
+
+	//results before refactor:
+	// 	BenchmarkBolt/split-4         	       1	4951724882 ns/op	 216.84 MB/s
+	// BenchmarkBolt/join-4          	       1	1424623605 ns/op	 753.70 MB/s
+	// BenchmarkBolt/push-4          	       1	1139107904 ns/op	 942.62 MB/s
+
+	keys := []K{}
+	b.Run("split", func(b *testing.B) {
+		b.Run("1KiB", func(b *testing.B) { benchmarkBoltRandomWritesChunkHashEncrypt(b, 1024, conf) })
+		b.Run("1MiB", func(b *testing.B) { benchmarkBoltRandomWritesChunkHashEncrypt(b, 1024*1024, conf) })
+		b.Run("1GiB", func(b *testing.B) {
+			keys = benchmarkBoltRandomWritesChunkHashEncrypt(b, size, conf)
+			fi, err := os.Stat(db.Path())
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			log.Printf("1GiB Random data generated %d keys, db size-on-disk: %dMiB", len(keys), fi.Size()/1024/1024)
 		})
+	})
 
-		if buf.Len() < 1 {
-			b.Error("resulting output buffer should not be empty")
-		}
+	// b.Run("join", func(b *testing.B) {
+	// 	benchmarkBoltRandomReadsMergeToFile(b, keys, size, conf)
+	// })
+	//
+	// b.Run("push", func(b *testing.B) {
+	// 	benchmarkBoltRandomReadsPushToLocalHTTP(b, keys, size, conf)
+	// })
+}
 
+func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, size int64, conf Config) (keys []K) {
+	// boltSize = int64(1024 * 1024 * 1024)
+	data := randb(size)
+	r := bytes.NewReader(data)
+
+	// hash := func(b []byte) K {
+	// 	return sha256.Sum256(b)
+	// }
+	//
+	// boltS = &boltStore{db, []byte("a")}
+	// block, err := aes.NewCipher(secret[:])
+	// if err != nil {
+	// 	b.Fatalf("failed to create AES block cipher: %v", err)
+	// }
+	//
+	// aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
+	// if err != nil {
+	// 	b.Fatalf("failed to setup GCM cipher mode: %v", err)
+	// }
+
+	b.ResetTimer()
+	b.SetBytes(size)
+	for i := 0; i < b.N; i++ {
+		keys = []K{}
+		r.Seek(0, 0)
+		conf.Chunker = chunker.New(r, secret.Pol())
+
+		err := Split(r, func(k K) error { keys = append(keys, k); return nil }, conf)
 		if err != nil {
 			b.Fatal(err)
 		}
+
+		if len(keys) < 1 {
+			b.Fatal("expected split to output some keys")
+		}
 	}
+
+	return keys
 }
 
-func BenchmarkBoltRandomReadsMergeToFile(b *testing.B) {
+func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []K, size int64, conf Config) {
 	var (
 		err   error
 		block cipher.Block
@@ -318,16 +416,20 @@ func BenchmarkBoltRandomReadsMergeToFile(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	b.SetBytes(int64(boltSize))
+	b.SetBytes(size)
 	for i := 0; i < b.N; i++ {
-		outf, _ := ioutil.TempFile("", "libchunk_")
+		outf, err := ioutil.TempFile("", "libchunk_")
+		if err != nil {
+			b.Fatal(err)
+		}
+
 		defer outf.Close()
 		defer os.Remove(outf.Name())
 
-		for _, k := range boltKeys {
-			chunk, err := boltS.Get(k)
+		for _, k := range keys {
+			chunk, err := conf.Store.Get(k)
 			if err != nil {
-				b.Fatal(err)
+				b.Fatalf("failed to find key '%s': %v", k, err)
 			}
 
 			plaintext, err := aead.Open(nil, k[:], chunk, nil)
@@ -351,21 +453,21 @@ func init() {
 	}()
 }
 
-func BenchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B) {
+func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []K, size int64, conf Config) {
 	b.ResetTimer()
-	b.SetBytes(int64(boltSize))
+	b.SetBytes(size)
 	for i := 0; i < b.N; i++ {
 		client := http.Client{}
 		concurrency := 64
 		sem := make(chan bool, concurrency)
-		for _, key := range boltKeys {
-			chunk, err := boltS.Get(key)
+		for _, key := range keys {
+			chunk, err := conf.Store.Get(key)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			sem <- true
-			go func(k libchunk.K, c []byte) {
+			go func(k K, c []byte) {
 				defer func() { <-sem }()
 				req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:9000/%x", k), bytes.NewReader(c))
 				if err != nil {
