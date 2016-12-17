@@ -1,10 +1,14 @@
-hash: 518454246a028792207ec2678e653664c60b90745569cc2caae17cc847f29259
-updated: 2016-12-12T21:47:00.490733802+01:00
+hash: ecd3d31b4b83167a932a87d13c62f1a51111c2fed5d670e16fb53dff6b2985ec
+updated: 2016-12-17T09:42:20.000362086+01:00
 imports:
 - name: github.com/boltdb/bolt
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
+- name: github.com/hashicorp/go-multierror
+  version: ed905158d87462226a13fe39ddf685ea65f1c11f
 - name: github.com/kr/s3
   version: c070c8f9a8f0032d48f0d2a77d4e382788bd8a1d
 - name: github.com/restic/chunker
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
-testImports: []
+testImports:
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55

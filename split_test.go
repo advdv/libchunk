@@ -6,6 +6,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,7 +29,17 @@ import (
 
 const KeySize = 32
 
-type KeyFunc func([]byte) [KeySize]byte
+type K [KeySize]byte
+
+func (k K) String() string {
+	return base64.StdEncoding.EncodeToString(k[:])
+}
+
+func (k K) ByteLine() []byte {
+	return []byte(fmt.Sprintf("%s\n", k))
+}
+
+type KeyFunc func([]byte) K
 
 type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
@@ -154,6 +167,83 @@ func randb(size int64) []byte {
 	return b
 }
 
+//ErrCollector allows for reaping errors concurrently
+type ErrCollector []error
+
+func (errs ErrCollector) Collect(errCh <-chan error) {
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+}
+
+//returns nil if no errors are collecd or else lists
+//the errors with whitespace
+func (errs ErrCollector) ErrorOrNil() error {
+	if len(errs) < 1 {
+		return nil
+	}
+	var msgs []string
+	for _, err := range errs {
+		msgs = append(msgs, err.Error())
+	}
+
+	return errors.New(strings.Join(msgs, "\n"))
+}
+
+type Config struct {
+	Chunker      Chunker
+	AEAD         cipher.AEAD
+	Secret       libchunk.Secret
+	ChunkBufSize int64
+	KeyFunc      KeyFunc
+	Store        Store
+}
+
+func Split(r io.Reader, w io.Writer, conf Config) (err error) {
+	wg := &sync.WaitGroup{}
+	buf := make([]byte, conf.ChunkBufSize)
+	errs := ErrCollector{}
+	errCh := make(chan error)
+	go errs.Collect(errCh)
+
+	for {
+		chunk, err := conf.Chunker.Next(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			errCh <- fmt.Errorf("failed to chunk input: %v", err)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			k := conf.KeyFunc(chunk.Data)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				encrypted := conf.AEAD.Seal(nil, k[:], chunk.Data, nil)
+				err = conf.Store.Put(k, encrypted)
+				if err != nil {
+					errCh <- fmt.Errorf("failed to put '%x' in store: %v", k, err)
+				}
+
+				_, err := w.Write(k.ByteLine())
+				if err != nil {
+					errCh <- fmt.Errorf("failed to output key '%x': %v", k, err)
+				}
+
+				boltKeys = append(boltKeys, k)
+			}()
+		}()
+	}
+
+	wg.Wait()
+	return errs.ErrorOrNil()
+}
+
 var boltSize int64
 var boltPath string
 var boltKeys [][32]byte
@@ -161,36 +251,28 @@ var boltInput []byte
 var boltS Store
 
 func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
-	var (
-		err   error
-		block cipher.Block
-		aead  cipher.AEAD
-		hash  KeyFunc
-		chnkr Chunker
-	)
-
 	boltSize = int64(1024 * 1024 * 1024)
 	boltInput = randb(boltSize)
 	r := bytes.NewReader(boltInput)
-	chnkr = chunker.New(r, secret.Pol())
-	buf := make([]byte, chunker.MaxSize)
+	// chnkr = chunker.New(r, secret.Pol())
+	// buf := make([]byte, chunker.MaxSize)
 	dir, _ := ioutil.TempDir("", "libchunk")
 	boltPath = filepath.Join(dir, "db.bolt")
 	fmt.Println("Boltdb:", boltPath)
 
-	hash = func(b []byte) [KeySize]byte {
+	hash := func(b []byte) K {
 		return sha256.Sum256(b)
 	}
 
 	db, _ := bolt.Open(boltPath, 0777, nil)
 	boltS = &boltStore{db, []byte("a")}
 
-	block, err = aes.NewCipher(secret[:])
+	block, err := aes.NewCipher(secret[:])
 	if err != nil {
 		b.Fatalf("failed to create AES block cipher: %v", err)
 	}
 
-	aead, err = cipher.NewGCMWithNonceSize(block, sha256.Size)
+	aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
 	if err != nil {
 		b.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
@@ -199,34 +281,22 @@ func BenchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B) {
 	b.SetBytes(int64(boltSize))
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, 0)
-		chnkr = chunker.New(r, secret.Pol())
-		wg := &sync.WaitGroup{}
-		for {
-			chunk, err := chnkr.Next(buf)
-			if err == io.EOF {
-				break
-			}
+		buf := bytes.NewBuffer(nil)
+		err = Split(r, buf, Config{
+			ChunkBufSize: chunker.MaxSize,
+			Chunker:      chunker.New(r, secret.Pol()),
+			AEAD:         aead,
+			KeyFunc:      hash,
+			Store:        boltS,
+		})
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				k := hash(chunk.Data)
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					encrypted := aead.Seal(nil, k[:], chunk.Data, nil)
-					err = boltS.Put(k, encrypted)
-					if err != nil {
-						b.Fatal(err)
-					}
-
-					boltKeys = append(boltKeys, k)
-				}()
-			}()
+		if buf.Len() < 1 {
+			b.Error("resulting output buffer should not be empty")
 		}
 
-		wg.Wait()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
