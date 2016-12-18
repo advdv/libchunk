@@ -38,6 +38,11 @@ func defaultConfig(t *testing.T) libchunk.Config {
 		t.Fatal(err)
 	}
 
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("chunks"))
+		return err
+	})
+
 	block, err := aes.NewCipher(secret[:])
 	if err != nil {
 		t.Fatalf("failed to create AES block cipher: %v", err)
@@ -53,7 +58,7 @@ func defaultConfig(t *testing.T) libchunk.Config {
 		SplitBufSize:     chunker.MaxSize,
 		SplitConcurrency: 64,
 		AEAD:             aead,
-		KeyFunc: func(b []byte) libchunk.K {
+		KeyHash: func(b []byte) libchunk.K {
 			return sha256.Sum256(b)
 		},
 		Store: &boltStore{db, []byte("chunks")},
@@ -78,7 +83,7 @@ func failingStorageConfig(t *testing.T) libchunk.Config {
 		SplitBufSize:     chunker.MaxSize,
 		SplitConcurrency: 64,
 		AEAD:             aead,
-		KeyFunc: func(b []byte) libchunk.K {
+		KeyHash: func(b []byte) libchunk.K {
 			return sha256.Sum256(b)
 		},
 		Store: &failingStore{},
@@ -129,7 +134,7 @@ func TestSplit(t *testing.T) {
 		conf        libchunk.Config
 		minKeys     int
 		expectedErr string
-		keyHandler  libchunk.KeyHandler
+		keyPutter   libchunk.KeyPutter
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
 		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
@@ -164,7 +169,7 @@ func TestSplit(t *testing.T) {
 		defaultConfig(t),
 		0,
 		"handler_failed",
-		func(k libchunk.K) error { return fmt.Errorf("handler_failed") },
+		&failingSlicePutter{},
 	}}
 
 	for _, c := range cases {
@@ -172,17 +177,16 @@ func TestSplit(t *testing.T) {
 
 			keys := []libchunk.K{}
 			var err error
-			if c.keyHandler == nil {
-				err = libchunk.Split(c.input, func(k libchunk.K) error {
-					keys = append(keys, k)
-					return nil
-				}, c.conf)
+			if c.keyPutter == nil {
+				h := &sliceKeyIterator{}
+				err = libchunk.Split(c.input, h, c.conf)
+				keys = h.Keys
 
 				if len(keys) < c.minKeys {
 					t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
 				}
 			} else {
-				err = libchunk.Split(c.input, c.keyHandler, c.conf)
+				err = libchunk.Split(c.input, c.keyPutter, c.conf)
 			}
 
 			if err != nil {

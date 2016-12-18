@@ -166,7 +166,7 @@ func BenchmarkConfigurations(b *testing.B) {
 			SplitBufSize:     chunker.MaxSize,
 			SplitConcurrency: 64,
 			AEAD:             aead,
-			KeyFunc: func(b []byte) libchunk.K {
+			KeyHash: func(b []byte) libchunk.K {
 				return sha256.Sum256(b)
 			},
 			Store: &boltStore{db, []byte("chunks")},
@@ -202,13 +202,11 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		keys = []libchunk.K{}
 		input := &randomBytesInput{bytes.NewBuffer(data)}
-		err := libchunk.Split(input, func(k libchunk.K) error {
-			keys = append(keys, k)
-			return nil
-		}, conf)
+		h := &sliceKeyIterator{}
+		err := libchunk.Split(input, h, conf)
 
+		keys = h.Keys
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -221,6 +219,32 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	return keys
 }
 
+type sliceKeyIterator struct {
+	i    int
+	Keys []libchunk.K
+}
+
+func (iter *sliceKeyIterator) Put(k libchunk.K) (err error) {
+	iter.Keys = append(iter.Keys, k)
+	return nil
+}
+
+func (iter *sliceKeyIterator) Next() (k libchunk.K, err error) {
+	if iter.i > len(iter.Keys)-1 {
+		return k, io.EOF
+	}
+
+	k = iter.Keys[iter.i]
+	iter.i++
+	return k, nil
+}
+
+type failingSlicePutter struct{}
+
+func (iter *failingSlicePutter) Put(k libchunk.K) (err error) {
+	return fmt.Errorf("handler_failed")
+}
+
 func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []libchunk.K, data []byte, conf libchunk.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
@@ -231,22 +255,9 @@ func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []libchunk.K, data [
 		}
 
 		defer os.Remove(outf.Name())
-
-		for _, k := range keys {
-			chunk, err := conf.Store.Get(k)
-			if err != nil {
-				b.Fatalf("failed to find key '%s': %v", k, err)
-			}
-
-			plaintext, err := conf.AEAD.Open(nil, k[:], chunk, nil)
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			_, err = outf.Write(plaintext)
-			if err != nil {
-				b.Fatal(err)
-			}
+		err = libchunk.Merge(&sliceKeyIterator{0, keys}, outf, conf)
+		if err != nil {
+			b.Fatal(err)
 		}
 
 		outf.Close()

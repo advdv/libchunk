@@ -4,6 +4,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"github.com/restic/chunker"
@@ -12,11 +13,23 @@ import (
 //KeySize describes the size of each chunk ley
 const KeySize = 32
 
-//KeyHandler is used whenever a key needs to received
-type KeyHandler func(k K) error
+var (
+	//ErrNoSuchKey is returned when a given key could not be found
+	ErrNoSuchKey = errors.New("no such key")
+)
 
-//KeyFunc turns a arbitrary sized chunk into content-based key
-type KeyFunc func([]byte) K
+//KeyHandler is used whenever a key needs to received
+// type KeyHandler func(k K) error
+
+//KeyPutter is used when a key itself needs to be received
+type KeyPutter interface {
+	Put(k K) error
+}
+
+//KeyIterator will return keys while calling
+type KeyIterator interface {
+	Next() (K, error)
+}
 
 //Chunker allows users to read a chunks of data at a time
 type Chunker interface {
@@ -44,6 +57,9 @@ func (s Secret) Pol() (p chunker.Pol) {
 	return chunker.Pol(i)
 }
 
+//KeyHash turns a arbitrary sized chunk into content-based key
+type KeyHash func([]byte) K
+
 //K is the key of a single chunk it is both used to store each
 //piece as well as to encrypt it
 type K [32]byte
@@ -66,6 +82,6 @@ type Config struct {
 	Secret           Secret
 	SplitBufSize     int64
 	SplitConcurrency int
-	KeyFunc          KeyFunc
+	KeyHash          KeyHash
 	Store            Store
 }
