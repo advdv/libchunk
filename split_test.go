@@ -5,7 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
-	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -16,18 +16,14 @@ import (
 	"github.com/restic/chunker"
 )
 
-var (
-	expectedTestFailure = errors.New("expected")
-)
-
 type failingStore struct{}
 
 func (store *failingStore) Put(k libchunk.K, c []byte) error {
-	return expectedTestFailure
+	return fmt.Errorf("storage_failed")
 }
 
 func (store *failingStore) Get(k libchunk.K) (c []byte, err error) {
-	return c, expectedTestFailure
+	return c, fmt.Errorf("storage_failed")
 }
 
 func defaultConfig(t *testing.T) libchunk.Config {
@@ -89,42 +85,104 @@ func failingStorageConfig(t *testing.T) libchunk.Config {
 	}
 }
 
+type randomBytesInput struct {
+	*bytes.Buffer
+}
+
+func (input *randomBytesInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+	return chunker.New(input, conf.Secret.Pol()), nil
+}
+
+type failingChunkerInput struct {
+	*bytes.Buffer
+}
+
+func (input *failingChunkerInput) Next([]byte) (c chunker.Chunk, err error) {
+	return c, fmt.Errorf("chunking_failed")
+}
+
+func (input *failingChunkerInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+	return input, nil
+}
+
+type failingInput struct {
+	*bytes.Buffer
+}
+
+func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
+	return c, nil
+}
+
+func (input *failingInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+	return input, fmt.Errorf("input_failed")
+}
+
+//
+// Actual tests
+//
+
 //TestSplit tests splitting of data streams
 func TestSplit(t *testing.T) {
 	cases := []struct {
 		name        string
-		input       *bytes.Buffer
+		input       libchunk.Input
 		conf        libchunk.Config
 		minKeys     int
 		expectedErr string
+		keyHandler  libchunk.KeyHandler
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
-		bytes.NewBuffer(randb(9 * 1024 * 1024)),
+		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
 		defaultConfig(t),
 		2,
 		"",
+		nil,
 	}, {
-		"1MiB_random_storage_failed", //chunker max size is 8Mib, so expect at least 2 chunks
-		bytes.NewBuffer(randb(1024 * 1024)),
+		"1MiB_random_storage_failed",
+		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
 		failingStorageConfig(t),
 		0,
-		"expected",
+		"storage_failed",
+		nil,
+	}, {
+		"1MiB_random_chunker_failed",
+		&failingChunkerInput{},
+		defaultConfig(t),
+		0,
+		"chunking_failed",
+		nil,
+	}, {
+		"1MiB_input_fails",
+		&failingInput{},
+		defaultConfig(t),
+		0,
+		"input_failed",
+		nil,
+	}, {
+		"1MiB_handler_failed",
+		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
+		defaultConfig(t),
+		0,
+		"handler_failed",
+		func(k libchunk.K) error { return fmt.Errorf("handler_failed") },
 	}}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 
-			//chunker is chosen based on input
-			c.conf.Chunker = chunker.New(c.input, c.conf.Secret.Pol())
-
 			keys := []libchunk.K{}
-			err := libchunk.Split(c.input, func(k libchunk.K) error {
-				keys = append(keys, k)
-				return nil
-			}, c.conf)
+			var err error
+			if c.keyHandler == nil {
+				err = libchunk.Split(c.input, func(k libchunk.K) error {
+					keys = append(keys, k)
+					return nil
+				}, c.conf)
 
-			if len(keys) < c.minKeys {
-				t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
+				if len(keys) < c.minKeys {
+					t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
+				}
+			} else {
+				err = libchunk.Split(c.input, c.keyHandler, c.conf)
 			}
 
 			if err != nil {

@@ -8,8 +8,12 @@ import (
 //Split reads a stream of bytes on 'r' and creates variable-sized chunks that
 //are stored and encrypted under a content-based key 'k' in the configured store.
 //Compute intensive operations are run concurrently but keys are guaranteed to
-//be handed over to 'keyH' in order: key of the first chunk will be pushed first
-func Split(r io.Reader, keyH func(k K) error, conf Config) error {
+//arrive at 'keyH' in order, i.e: key of the first chunk will be pushed first
+func Split(input Input, h KeyHandler, conf Config) error {
+	chunker, err := input.Chunker(conf)
+	if err != nil {
+		return fmt.Errorf("failed to determine chunker for input: %v", err)
+	}
 
 	//result of working an item
 	type result struct {
@@ -41,7 +45,7 @@ func Split(r io.Reader, keyH func(k K) error, conf Config) error {
 		buf := make([]byte, conf.SplitBufSize)
 		pos := int64(0)
 		for {
-			chunk, err := conf.Chunker.Next(buf)
+			chunk, err := chunker.Next(buf)
 			if err != nil {
 				if err != io.EOF {
 					itemCh <- &item{
@@ -87,21 +91,14 @@ func Split(r io.Reader, keyH func(k K) error, conf Config) error {
 		if res.err != nil {
 			return fmt.Errorf("work failed on chunk '%s': %v", res.key, res.err)
 		} else {
-			err := keyH(res.key)
+			err := h(res.key)
 			if err != nil {
-				return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, res.err)
+				return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, err)
 			}
 		}
 
 		lastpos = it.pos
 	}
-
-	//any concurrent errors
-	// for err := range errc {
-	// 	if err != nil {
-	// 		return fmt.Errorf("chunking error: %v", err)
-	// 	}
-	// }
 
 	return nil
 }

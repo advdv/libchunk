@@ -162,6 +162,7 @@ func BenchmarkConfigurations(b *testing.B) {
 	//Default libchunk.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
 		conf := libchunk.Config{
+			Secret:           secret,
 			SplitBufSize:     chunker.MaxSize,
 			SplitConcurrency: 64,
 			AEAD:             aead,
@@ -202,10 +203,8 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		keys = []libchunk.K{}
-		r := bytes.NewReader(data)
-		conf.Chunker = chunker.New(r, secret.Pol())
-
-		err := libchunk.Split(r, func(k libchunk.K) error {
+		input := &randomBytesInput{bytes.NewBuffer(data)}
+		err := libchunk.Split(input, func(k libchunk.K) error {
 			keys = append(keys, k)
 			return nil
 		}, conf)

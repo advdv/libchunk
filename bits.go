@@ -4,12 +4,16 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/binary"
+	"io"
 
 	"github.com/restic/chunker"
 )
 
 //KeySize describes the size of each chunk ley
 const KeySize = 32
+
+//KeyHandler is used whenever a key needs to received
+type KeyHandler func(k K) error
 
 //KeyFunc turns a arbitrary sized chunk into content-based key
 type KeyFunc func([]byte) K
@@ -50,9 +54,14 @@ func (k K) String() string {
 	return base64.StdEncoding.EncodeToString(k[:])
 }
 
+//Input is a reader that can determine how it will be chunked
+type Input interface {
+	io.Reader
+	Chunker(conf Config) (Chunker, error)
+}
+
 //Configure Split, Join, Push and Fetch behaviour
 type Config struct {
-	Chunker          Chunker
 	AEAD             cipher.AEAD
 	Secret           Secret
 	SplitBufSize     int64
