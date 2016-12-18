@@ -31,9 +31,8 @@ func Split(r io.Reader, keyH func(k K) error, conf Config) (err error) {
 	}
 
 	//handle concurrent errors
-	errs := ErrCollector{}
-	errCh := make(chan error)
-	go errs.Collect(errCh)
+	errc := ErrCollect()
+	go errc.Collect()
 
 	//fan in, doneCh is closed whenever all key handlers have been called
 	doneCh := make(chan struct{})
@@ -53,7 +52,7 @@ func Split(r io.Reader, keyH func(k K) error, conf Config) (err error) {
 
 			err = keyH(<-it.keyCh)
 			if err != nil {
-				errCh <- err
+				errc.C <- err
 			}
 
 			lastpos = it.pos
@@ -82,12 +81,12 @@ func Split(r io.Reader, keyH func(k K) error, conf Config) (err error) {
 		//causing concurrent work to access unexpected data
 		copy(it.chunk, chunk.Data)
 
-		go work(it, errCh)
+		go work(it, errc.C)
 		itemCh <- it
 		pos++
 	}
 
 	close(itemCh)
 	<-doneCh
-	return errs.ErrorOrNil()
+	return errc.ErrorOrNil()
 }

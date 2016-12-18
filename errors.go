@@ -5,23 +5,38 @@ import (
 	"strings"
 )
 
-//ErrCollector allows for reaping errors concurrently
-type ErrCollector []error
+type errCollector struct {
+	errors []error
+	C      chan error
+}
 
-func (errs ErrCollector) Collect(errCh <-chan error) {
-	for err := range errCh {
-		errs = append(errs, err)
+//ErrCollect allows for reaping errors concurrently
+//and easily check or concat errors into a single error
+func ErrCollect() *errCollector {
+	return &errCollector{C: make(chan error)}
+}
+
+//Collect will start collecting errors send over
+//the error channel
+func (col *errCollector) Collect() {
+	for err := range col.C {
+		if err == nil {
+			continue
+		}
+
+		col.errors = append(col.errors, err)
 	}
 }
 
-//returns nil if no errors are collecd or else lists
-//the errors with whitespace
-func (errs ErrCollector) ErrorOrNil() error {
-	if len(errs) < 1 {
+//returns nil if no errors are colecd or else lists
+//the errors in different lines
+func (col *errCollector) ErrorOrNil() error {
+	if len(col.errors) < 1 {
 		return nil
 	}
+
 	var msgs []string
-	for _, err := range errs {
+	for _, err := range col.errors {
 		msgs = append(msgs, err.Error())
 	}
 
