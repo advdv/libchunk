@@ -23,10 +23,10 @@ type Chunker interface {
 type Store interface {
 
 	//will do nothing if exists, must be atomic
-	Put(k [KeySize]byte, chunk []byte) error
+	Put(k K, chunk []byte) error
 
 	//returns os.NotExist if the chunk doesnt exist
-	Get(k [KeySize]byte) (chunk []byte, err error)
+	Get(k K) (chunk []byte, err error)
 }
 
 //Secret is the 32 byte key that scopes the deduplication

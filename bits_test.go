@@ -68,7 +68,7 @@ type boltStore struct {
 	bucketName []byte
 }
 
-func (s *boltStore) Put(k [libchunk.KeySize]byte, chunk []byte) (err error) {
+func (s *boltStore) Put(k libchunk.K, chunk []byte) (err error) {
 	return s.db.Batch(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists(s.bucketName)
 		if err != nil {
@@ -84,7 +84,7 @@ func (s *boltStore) Put(k [libchunk.KeySize]byte, chunk []byte) (err error) {
 	})
 }
 
-func (s *boltStore) Get(k [libchunk.KeySize]byte) (chunk []byte, err error) {
+func (s *boltStore) Get(k libchunk.K) (chunk []byte, err error) {
 	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucketName)
 		if b == nil {
