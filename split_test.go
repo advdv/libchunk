@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -91,7 +92,7 @@ func failingStorageConfig(t *testing.T) libchunk.Config {
 }
 
 type randomBytesInput struct {
-	*bytes.Buffer
+	io.Reader
 }
 
 func (input *randomBytesInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {

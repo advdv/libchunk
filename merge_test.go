@@ -16,7 +16,7 @@ import (
 func TestMerge(t *testing.T) {
 	cases := []struct {
 		name  string
-		input libchunk.Input
+		input []byte
 		iter  interface {
 			libchunk.KeyPutter
 			libchunk.KeyIterator
@@ -43,7 +43,7 @@ func TestMerge(t *testing.T) {
 		"storage_failed",
 	}, {
 		"9MiB_random_defaultconf",
-		nil,
+		randb(9 * 1024 * 1024),
 		&sliceKeyIterator{0, []libchunk.K{}},
 		defaultConfig(t),
 		"",
@@ -53,14 +53,14 @@ func TestMerge(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			iter := c.iter
 			if c.input != nil {
-				err := libchunk.Split(c.input, iter, c.conf)
+				err := libchunk.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
 				if err != nil {
 					t.Fatal("failed to spit first: %v", err)
 				}
 			}
 
-			buf := bytes.NewBuffer(nil)
-			err := libchunk.Merge(iter, buf, c.conf)
+			output := bytes.NewBuffer(nil)
+			err := libchunk.Merge(iter, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("splitting shouldnt fail but got: %v", err)
@@ -69,6 +69,12 @@ func TestMerge(t *testing.T) {
 				}
 			} else if c.expectedErr != "" {
 				t.Errorf("expected an error, got success")
+			}
+
+			if c.input != nil {
+				if !bytes.Equal(c.input, output.Bytes()) {
+					t.Errorf("expected merge output to equal split input, input len: %d, output len: %d", c.input, output.Len())
+				}
 			}
 		})
 	}
