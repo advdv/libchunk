@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -224,75 +223,101 @@ func (errs ErrCollector) ErrorOrNil() error {
 }
 
 type Config struct {
-	Chunker      Chunker
-	AEAD         cipher.AEAD
-	Secret       libchunk.Secret
-	ChunkBufSize int64
-	KeyFunc      KeyFunc
-	Store        Store
+	Chunker          Chunker
+	AEAD             cipher.AEAD
+	Secret           libchunk.Secret
+	SplitBufSize     int64
+	SplitConcurrency int
+	KeyFunc          KeyFunc
+	Store            Store
 }
 
+//Split reads a stream of bytes on 'r' and creates variable-sized chunks that
+//are stored and encrypted under a content-based key 'k' in the configured store.
+//Compute intensive operations are run concurrently but keys are guaranteed to
+//be handed over to 'keyH' in order: key of the first chunk will be pushed first
 func Split(r io.Reader, keyH func(k K) error, conf Config) (err error) {
+
+	//work item
+	type item struct {
+		pos   int64
+		chunk []byte
+		keyCh chan K
+	}
+
+	//concurrent work
+	work := func(it *item, errCh chan<- error) {
+		k := conf.KeyFunc(it.chunk)                           //Hash
+		encrypted := conf.AEAD.Seal(nil, k[:], it.chunk, nil) //Encrypt
+		err = conf.Store.Put(k, encrypted)                    //Store
+		if err != nil {
+			errCh <- err
+		}
+
+		it.keyCh <- k //Output
+	}
 
 	//handle concurrent errors
 	errs := ErrCollector{}
 	errCh := make(chan error)
 	go errs.Collect(errCh)
 
-	//handle concurrent keys
-	keyCh := make(chan K)
+	//fan in, doneCh is closed whenever all key handlers have been called
+	doneCh := make(chan struct{})
+	itemCh := make(chan *item, conf.SplitConcurrency)
 	go func() {
-		buf := make([]byte, conf.ChunkBufSize)
-		defer close(keyCh)
-		wg := &sync.WaitGroup{}
-		defer wg.Wait()
-		for {
-			chunk, err := conf.Chunker.Next(buf)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				errCh <- fmt.Errorf("failed to chunk input: %v", err)
+		var lastpos int64
+		defer close(doneCh)
+		for it := range itemCh {
+			if lastpos > it.pos {
+				//the language spec is unclear about guaranteed FIFO behaviour of
+				//buffered channels, in rare conditions this behaviour might not
+				//be guaranteed, for this project such a case be catestropic as it WILL
+				//corrupt large files. This is a buildin safeguard that asks the user to
+				//submit a real world example if this happens
+				panic(fmt.Sprintf("Unexpected race condition during splitting, chunk '%d' arrived before chunk '%d', please report this to the author with the file that is being split", lastpos, it.pos))
 			}
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			err = keyH(<-it.keyCh)
+			if err != nil {
+				errCh <- err
+			}
 
-				k := conf.KeyFunc(chunk.Data)
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					encrypted := conf.AEAD.Seal(nil, k[:], chunk.Data, nil)
-					err = conf.Store.Put(k, encrypted)
-					if err != nil {
-						errCh <- fmt.Errorf("failed to put '%x' in store: %v", k, err)
-						return
-					}
-
-					keyCh <- k
-				}()
-			}()
+			lastpos = it.pos
 		}
 	}()
 
-	//wait for all keys to be handled
-	for k := range keyCh {
-		if err = keyH(k); err != nil {
-			return fmt.Errorf("key handler failed for '%x': %v", k, err)
+	buf := make([]byte, conf.SplitBufSize)
+	pos := int64(0)
+	for {
+		chunk, err := conf.Chunker.Next(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return fmt.Errorf("failed to chunk input: %v", err)
 		}
+
+		it := &item{
+			pos:   pos,
+			chunk: make([]byte, chunk.Length),
+			keyCh: make(chan K),
+		}
+
+		//the chunker reuses the buffer that underpins the chunk.Data
+		//causing concurrent work to access unexpected data
+		copy(it.chunk, chunk.Data)
+
+		go work(it, errCh)
+		itemCh <- it
+		pos++
 	}
 
+	close(itemCh)
+	<-doneCh
 	return errs.ErrorOrNil()
 }
-
-// var boltSize int64
-// var boltPath string
-// var boltKeys []K
-// var boltInput []byte
-// var boltS Store
 
 func BenchmarkBolt(b *testing.B) {
 	dbdir, err := ioutil.TempDir("", "libchunk_db_")
@@ -319,37 +344,33 @@ func BenchmarkBolt(b *testing.B) {
 	defer db.Close()
 	defer os.RemoveAll(dbdir)
 
-	//results before refactor:
-	// BenchmarkBolt/split-4         	       1	4951724882 ns/op	 216.84 MB/s
-	// BenchmarkBolt/join-4          	       1	1424623605 ns/op	 753.70 MB/s
-	// BenchmarkBolt/push-4          	       1	1139107904 ns/op	 942.62 MB/s
-
+	//Default Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
 		conf := Config{
-			ChunkBufSize: chunker.MaxSize,
-			AEAD:         aead,
+			SplitBufSize:     chunker.MaxSize,
+			SplitConcurrency: 64,
+			AEAD:             aead,
 			KeyFunc: func(b []byte) K {
 				return sha256.Sum256(b)
 			},
-			Store: &boltStore{db, []byte("a")},
+			Store: &boltStore{db, []byte("chunks")},
 		}
 
 		sizes := []int64{
-			// 1024,
-			// 1024 * 1024,
-			16 * 1024 * 1024,
-			// 1024 * 1024 * 1024,
+			1024,
+			1024 * 1024,
+			12 * 1024 * 1024,
+			1024 * 1024 * 1024,
 		}
 		for _, s := range sizes {
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
 				keys := []K{}
-				b.Run("join", func(b *testing.B) {
+				b.Run("split", func(b *testing.B) {
 					keys = benchmarkBoltRandomWritesChunkHashEncrypt(b, data, conf)
 				})
 
 				b.Run("join", func(b *testing.B) {
-					b.ResetTimer()
 					benchmarkBoltRandomReadsMergeToFile(b, keys, data, conf)
 				})
 
@@ -359,15 +380,11 @@ func BenchmarkBolt(b *testing.B) {
 			})
 		}
 
-		// b.Run("1KiB", func(b *testing.B) { benchmarkBoltRandomWritesChunkHashEncrypt(b, randb(1024), conf) })
-		// b.Run("1MiB", func(b *testing.B) { benchmarkBoltRandomWritesChunkHashEncrypt(b, randb(1024*1024), conf) })
-
 	})
 
 }
 
 func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf Config) (keys []K) {
-
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
@@ -375,7 +392,11 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf C
 		r := bytes.NewReader(data)
 		conf.Chunker = chunker.New(r, secret.Pol())
 
-		err := Split(r, func(k K) error { keys = append(keys, k); return nil }, conf)
+		err := Split(r, func(k K) error {
+			keys = append(keys, k)
+			return nil
+		}, conf)
+
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -397,7 +418,6 @@ func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []K, data []byte, co
 			b.Fatal(err)
 		}
 
-		defer outf.Close()
 		defer os.Remove(outf.Name())
 
 		for _, k := range keys {
@@ -417,13 +437,14 @@ func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []K, data []byte, co
 			}
 		}
 
+		outf.Close()
 		output, err := ioutil.ReadFile(outf.Name())
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		if !bytes.Equal(data, output) {
-			b.Errorf("written output data should be equal to input data, len input: %d, len output: %d", len(data), len(output))
+			b.Errorf("written output data should be equal to input data, len input: %d (%x ...), len output: %d (%x ...)", len(data), data[:64], len(output), output[:64])
 		}
 	}
 }
