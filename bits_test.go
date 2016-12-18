@@ -26,43 +26,6 @@ import (
 // Test types
 //
 
-type fsStore string
-
-func (s fsStore) Put(k [libchunk.KeySize]byte, chunk []byte) error {
-	f, err := os.OpenFile(filepath.Join(string(s), fmt.Sprintf("%x", k)), os.O_CREATE|os.O_RDWR|os.O_EXCL, 0777)
-	if err != nil {
-		if os.IsExist(err) {
-			return nil
-		}
-
-		return err
-	}
-
-	defer f.Close()
-	_, err = f.Write(chunk)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s fsStore) Get(k [libchunk.KeySize]byte) ([]byte, error) {
-	kpath := filepath.Join(string(s), fmt.Sprintf("%x", k))
-	f, err := os.OpenFile(kpath, os.O_RDONLY, 0777)
-	if err != nil {
-		return nil, err
-	}
-
-	defer f.Close()
-	chunk, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return chunk, nil
-}
-
 type boltStore struct {
 	db         *bolt.DB
 	bucketName []byte
@@ -224,6 +187,10 @@ type sliceKeyIterator struct {
 	Keys []libchunk.K
 }
 
+func (iter *sliceKeyIterator) Reset() {
+	iter.i = 0
+}
+
 func (iter *sliceKeyIterator) Put(k libchunk.K) (err error) {
 	iter.Keys = append(iter.Keys, k)
 	return nil
@@ -256,19 +223,11 @@ func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []libchunk.K, data [
 
 		defer os.Remove(outf.Name())
 		err = libchunk.Merge(&sliceKeyIterator{0, keys}, outf, conf)
-		if err != nil {
-			b.Fatal(err)
-		}
-
 		outf.Close()
-		output, err := ioutil.ReadFile(outf.Name())
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		if !bytes.Equal(data, output) {
-			b.Errorf("written output data should be equal to input data, len input: %d (%x ...), len output: %d (%x ...)", len(data), data[:64], len(output), output[:64])
-		}
 	}
 }
 

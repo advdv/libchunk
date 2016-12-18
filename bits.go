@@ -18,9 +18,6 @@ var (
 	ErrNoSuchKey = errors.New("no such key")
 )
 
-//KeyHandler is used whenever a key needs to received
-// type KeyHandler func(k K) error
-
 //KeyPutter is used when a key itself needs to be received
 type KeyPutter interface {
 	Put(k K) error
@@ -28,6 +25,7 @@ type KeyPutter interface {
 
 //KeyIterator will return keys while calling
 type KeyIterator interface {
+	Reset()
 	Next() (K, error)
 }
 
