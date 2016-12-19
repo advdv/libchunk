@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-//Join will read and decrypt chunks for keys provided by the iterator and writes
-//each chunk's contents to writer 'w' in order of key appearance. Chunks
-//are fetched concurrently (locally or remote) but are guaranteed arrive in
+//Join will read and decrypt chunks for keys provided by the iterator and write
+//each chunk's contents to writer 'w' in order of key appearance. Chunks are
+//fetched concurrently (locally or remote) but are guaranteed to arrive in
 //order to writer 'w' for assembly in the original format
 func Join(keys KeyIterator, w io.Writer, conf Config) error {
 
@@ -23,6 +23,7 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 		key   K
 		resCh chan *result
 		err   error
+		pos   int64
 	}
 
 	//work is run concurrently
@@ -48,6 +49,7 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 	itemCh := make(chan *item, 10)
 	go func() {
 		defer close(itemCh)
+		pos := int64(0)
 		for {
 			k, err := keys.Next()
 			if err != nil {
@@ -62,19 +64,31 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 			}
 
 			it := &item{
+				pos:   pos,
 				key:   k,
 				resCh: make(chan *result),
 			}
 
 			go work(it)  //create work
 			itemCh <- it //send to fan-in thread for syncing results
+			pos++
 		}
 	}()
 
 	//fan in, output plaintext chunks
+	var lastpos int64
 	for it := range itemCh {
 		if it.err != nil {
 			return fmt.Errorf("failed to iterate: %v", it.err)
+		}
+
+		if lastpos > it.pos {
+			//the language spec is unclear about guaranteed FIFO behaviour of
+			//buffered channels, in rare conditions this behaviour might not
+			//be guaranteed, for this project such a case be catestropic as it WILL
+			//corrupt large files. This is a buildin safeguard that asks the user to
+			//submit a real world example if this happens
+			return fmt.Errorf("Unexpected race condition during joining, chunk '%d' arrived before chunk '%d', please report this to the author with the file that is being split", lastpos, it.pos)
 		}
 
 		res := <-it.resCh
@@ -86,6 +100,8 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 				return fmt.Errorf("failed to write chunk '%s' to output: %v", it.key, err)
 			}
 		}
+
+		lastpos = it.pos
 	}
 
 	return nil
