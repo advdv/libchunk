@@ -6,107 +6,18 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/advanderveer/libchunk"
 	"github.com/boltdb/bolt"
-	"github.com/kr/s3"
 )
 
 //
 // Test types
 //
-
-type httpRemote struct {
-	scheme string
-	host   string
-	client *http.Client
-}
-
-func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s/%x", r.scheme, r.host, k), bytes.NewReader(chunk))
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP request for '%x': %v", k, err)
-	}
-
-	s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
-	resp, err := r.client.Do(req)
-	if err != nil || resp == nil || resp.StatusCode != 200 {
-		return fmt.Errorf("failed to perform HTTP request for '%x': %v", k, err)
-	}
-
-	return nil
-}
-
-type boltStore struct {
-	db         *bolt.DB
-	bucketName []byte
-}
-
-func (s *boltStore) Put(k libchunk.K, chunk []byte) (err error) {
-	return s.db.Batch(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists(s.bucketName)
-		if err != nil {
-			return fmt.Errorf("failed to create-if-not-exist: %v", err)
-		}
-
-		existing := b.Get(k[:])
-		if existing != nil {
-			return nil
-		}
-
-		return b.Put(k[:], chunk)
-	})
-}
-
-func (s *boltStore) Get(k libchunk.K) (chunk []byte, err error) {
-	err = s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucketName)
-		if b == nil {
-			return fmt.Errorf("bucket '%s' must first be created", string(s.bucketName))
-		}
-
-		v := b.Get(k[:])
-		if v == nil || len(v) < 1 {
-			return os.ErrNotExist
-		}
-
-		chunk = make([]byte, len(v))
-		copy(chunk, v)
-		return nil
-	})
-
-	return chunk, err
-}
-
-type quiter interface {
-	Fatalf(format string, args ...interface{})
-}
-
-var secret = libchunk.Secret{
-	0x3D, 0xA3, 0x35, 0x8B, 0x4D, 0xC1, 0x73, 0x00, //polynomial
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //random bytes
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-}
-
-func randr(size int64) io.Reader {
-	return io.LimitReader(rand.New(rand.NewSource(time.Now().UnixNano())), size)
-}
-
-func randb(size int64) []byte {
-	b, err := ioutil.ReadAll(randr(size))
-	if err != nil {
-		panic(err)
-	}
-
-	return b
-}
 
 func BenchmarkConfigurations(b *testing.B) {
 	go func() {
@@ -131,16 +42,14 @@ func BenchmarkConfigurations(b *testing.B) {
 
 	//Default libchunk.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
-		conf := defaultConfig(b)
-		conf.Store = &boltStore{db, []byte("chunks")}
-		conf.Remote = &httpRemote{"http", "localhost:9000", &http.Client{}}
-
+		conf := defaultConfigWithRemote(b, nil)
 		sizes := []int64{
 			1024,
 			1024 * 1024,
 			12 * 1024 * 1024,
 			1024 * 1024 * 1024,
 		}
+
 		for _, s := range sizes {
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
@@ -156,6 +65,11 @@ func BenchmarkConfigurations(b *testing.B) {
 				b.Run("push", func(b *testing.B) {
 					benchmarkBoltRandomReadsPushToLocalHTTP(b, keys, data, conf)
 				})
+
+				//@TODO benchmark this
+				// b.Run("join-from-remote", func(b *testing.B) {
+				// 	benchmarkBoltRandomReadsMergeToFile(b, keys, data, conf)
+				// })
 			})
 		}
 	})

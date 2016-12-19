@@ -2,10 +2,6 @@ package libchunk_test
 
 import (
 	"bytes"
-	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -13,20 +9,6 @@ import (
 )
 
 func TestPush(t *testing.T) {
-	l, err := net.Listen("tcp", ":")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	go func() {
-		t.Fatal(http.Serve(l, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			io.Copy(ioutil.Discard, r.Body)
-		})))
-	}()
-
-	conf := defaultConfig(t)
-	conf.Remote = &httpRemote{"http", l.Addr().String(), &http.Client{}}
-
 	cases := []struct {
 		name  string
 		input []byte
@@ -40,7 +22,7 @@ func TestPush(t *testing.T) {
 		"9MiB_random_defaultconf",
 		randb(9 * 1024 * 1024),
 		&sliceKeyIterator{0, []libchunk.K{}},
-		conf,
+		defaultConfigWithRemote(t, nil),
 		"",
 	}}
 

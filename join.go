@@ -28,10 +28,33 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 
 	//work is run concurrently
 	work := func(it *item) {
-		chunk, err := conf.Store.Get(it.key)
+		getters := []interface {
+			Get(k K) ([]byte, error)
+		}{
+			conf.Store,
+			conf.Remote,
+		}
+
+		var (
+			chunk []byte
+			err   error
+		)
+
+		for _, g := range getters {
+			if g == nil {
+				continue
+			}
+
+			chunk, err = g.Get(it.key)
+			if err != nil {
+				continue
+			}
+
+			break
+		}
+
 		if err != nil {
 			if os.IsNotExist(err) {
-				//@TODO add fetching from remote
 				it.resCh <- &result{nil, ErrNoSuchKey}
 				return
 			}

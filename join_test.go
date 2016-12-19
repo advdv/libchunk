@@ -2,7 +2,6 @@ package libchunk_test
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -12,28 +11,42 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-type failingWriter struct {
-	*bytes.Buffer
+func TestJoinFromRemote(t *testing.T) {
+	conf := defaultConfigWithRemote(t, map[libchunk.K][]byte{
+		libchunk.K([32]byte{0x01}): []byte("a"),
+	})
+
+	_ = conf
+	cases := []struct {
+		name string
+		conf libchunk.Config
+		iter libchunk.KeyIterator
+	}{
+	// {
+	// 	"single_key_from_remote",
+	// 	conf,
+	// 	&sliceKeyIterator{Keys: []libchunk.K{
+	// 		[32]byte{0x01},
+	// 	}},
+	// }
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+
+			buf := bytes.NewBuffer(nil)
+			err := libchunk.Join(c.iter, buf, c.conf)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			//@TODO implement
+		})
+	}
 }
 
-func (w *failingWriter) Write(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("writer_failure")
-}
-
-type failingKeyIterator struct {
-	*sliceKeyIterator
-}
-
-func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
-	return k, fmt.Errorf("iterator_failure")
-}
-
-//
-// Actual tests
-//
-
-//TestJoin tests splitting of data streams
-func TestJoin(t *testing.T) {
+//TestJoinFromLocal tests splitting of data streams
+func TestJoinFromLocal(t *testing.T) {
 	cases := []struct {
 		name   string
 		input  []byte

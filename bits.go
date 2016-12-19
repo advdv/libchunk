@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/restic/chunker"
@@ -39,6 +40,9 @@ type Remote interface {
 
 	//Put a key on the remote
 	Put(k K, chunk []byte) error
+
+	//Get a chunk from the remote
+	Get(k K) (chunk []byte, err error)
 }
 
 //Store holds chunks locally
@@ -73,6 +77,22 @@ type K [32]byte
 //ASCII characters but is yet space efficient.
 func (k K) String() string {
 	return base64.StdEncoding.EncodeToString(k[:])
+}
+
+//DecodeKey attempts to read a key from a byteslice
+func DecodeKey(b []byte) (k K, err error) {
+	buf := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
+	n, err := base64.StdEncoding.Decode(buf, b)
+	if err != nil {
+		return k, fmt.Errorf("failed to decode '%x' as key: %v", b, err)
+	}
+
+	if n != KeySize {
+		return k, fmt.Errorf("decoded incorrect length, expected %d got %d", KeySize, n)
+	}
+
+	copy(k[:], buf)
+	return k, nil
 }
 
 //Input is a reader that can determine how it will be chunked
