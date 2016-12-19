@@ -144,7 +144,7 @@ func TestJoin(t *testing.T) {
 			err := libchunk.Join(iter, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
-					t.Errorf("splitting shouldnt fail but got: %v", err)
+					t.Errorf("joining shouldnt fail but got: %v", err)
 				} else if !strings.Contains(err.Error(), c.expectedErr) {
 					t.Errorf("expected an error that contains message '%s', got: %v", c.expectedErr, err)
 				}

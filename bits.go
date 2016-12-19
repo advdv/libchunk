@@ -82,4 +82,6 @@ type Config struct {
 	SplitConcurrency int
 	KeyHash          KeyHash
 	Store            Store
+	RemoteHost       string
+	RemoteScheme     string
 }

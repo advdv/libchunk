@@ -18,7 +18,6 @@ import (
 
 	"github.com/advanderveer/libchunk"
 	"github.com/boltdb/bolt"
-	"github.com/kr/s3"
 	"github.com/restic/chunker"
 )
 
@@ -132,7 +131,9 @@ func BenchmarkConfigurations(b *testing.B) {
 			KeyHash: func(b []byte) libchunk.K {
 				return sha256.Sum256(b)
 			},
-			Store: &boltStore{db, []byte("chunks")},
+			Store:        &boltStore{db, []byte("chunks")},
+			RemoteHost:   "localhost:9000",
+			RemoteScheme: "http",
 		}
 
 		sizes := []int64{
@@ -234,34 +235,10 @@ func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []libchunk.K, da
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		client := http.Client{}
-		concurrency := 64
-		sem := make(chan bool, concurrency)
-		for _, key := range keys {
-			chunk, err := conf.Store.Get(key)
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			sem <- true
-			go func(k libchunk.K, c []byte) {
-				defer func() { <-sem }()
-				req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:9000/%x", k), bytes.NewReader(c))
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
-				resp, err := client.Do(req)
-				if err != nil || resp == nil || resp.StatusCode != 200 {
-					b.Fatal(err)
-				}
-
-			}(key, chunk)
-		}
-
-		for i := 0; i < cap(sem); i++ {
-			sem <- true
+		iter := &sliceKeyIterator{Keys: keys}
+		err := libchunk.Push(iter, conf)
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
 }
