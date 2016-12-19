@@ -236,11 +236,12 @@ func defaultConf(t quiter, secret libchunk.Secret) libchunk.Config {
 		Secret:           secret,
 		SplitBufSize:     chunker.MaxSize,
 		SplitConcurrency: 64,
+		PushConcurrency:  64,
+		JoinConcurrency:  10,
 		AEAD:             aead,
 		KeyHash: func(b []byte) libchunk.K {
 			return sha256.Sum256(b)
 		},
-		PushConcurrency: 64,
 	}
 }
 

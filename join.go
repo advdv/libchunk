@@ -64,7 +64,7 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 	}
 
 	//fan-out concurrent work
-	itemCh := make(chan *item, 10)
+	itemCh := make(chan *item, conf.JoinConcurrency)
 	go func() {
 		defer close(itemCh)
 		pos := int64(0)

@@ -108,8 +108,9 @@ type Config struct {
 	Secret           Secret
 	SplitBufSize     int64
 	SplitConcurrency int
+	PushConcurrency  int
+	JoinConcurrency  int
 	KeyHash          KeyHash
 	Store            Store
 	Remote           Remote
-	PushConcurrency  int
 }
