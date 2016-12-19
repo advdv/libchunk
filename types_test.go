@@ -67,13 +67,28 @@ func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
 	return nil
 }
 
-type memoryStore struct{}
+type memoryStore struct {
+	chunks map[libchunk.K][]byte
+}
+
+func NewMemoryStore() *memoryStore {
+	return &memoryStore{
+		chunks: map[libchunk.K][]byte{},
+	}
+}
 
 func (s *memoryStore) Put(k libchunk.K, chunk []byte) (err error) {
+	s.chunks[k] = chunk
 	return nil
 }
 
 func (s *memoryStore) Get(k libchunk.K) (chunk []byte, err error) {
+	var ok bool
+	chunk, ok = s.chunks[k]
+	if !ok {
+		return chunk, os.ErrNotExist
+	}
+
 	return chunk, nil
 }
 

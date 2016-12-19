@@ -12,37 +12,33 @@ import (
 )
 
 func TestJoinFromRemote(t *testing.T) {
-	conf := withHTTPRemote(t, defaultConf(t, secret), map[libchunk.K][]byte{})
+	data := randb(9 * 1024 * 1024)
+	keys := &sliceKeyIterator{}
+	store := NewMemoryStore()
+	input := &randomBytesInput{bytes.NewReader(data)}
+	err := libchunk.Split(input, keys, withStore(t, defaultConf(t, secret), store))
+	if err != nil {
+		t.Fatalf("couldnt split for test prep: %v", err)
+	}
 
-	// conf := defaultConfigWithRemote(t, map[libchunk.K][]byte{
-	// 	libchunk.K([32]byte{0x01}): []byte("a"),
-	// })
-
-	_ = conf
+	conf := withHTTPRemote(t, defaultConf(t, secret), store.chunks)
 	cases := []struct {
 		name string
 		conf libchunk.Config
 		iter libchunk.KeyIterator
-	}{
-	// {
-	// 	"single_key_from_remote",
-	// 	conf,
-	// 	&sliceKeyIterator{Keys: []libchunk.K{
-	// 		[32]byte{0x01},
-	// 	}},
-	// }
-	}
+	}{{
+		"9MiB_from_remote",
+		conf,
+		keys,
+	}}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-
 			buf := bytes.NewBuffer(nil)
 			err := libchunk.Join(c.iter, buf, c.conf)
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			//@TODO implement
 		})
 	}
 }
