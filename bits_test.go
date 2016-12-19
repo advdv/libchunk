@@ -222,12 +222,11 @@ func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []libchunk.K, data [
 		}
 
 		defer os.Remove(outf.Name())
-		err = libchunk.Merge(&sliceKeyIterator{0, keys}, outf, conf)
+		err = libchunk.Join(&sliceKeyIterator{0, keys}, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
 		}
-
 	}
 }
 

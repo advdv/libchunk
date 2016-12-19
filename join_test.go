@@ -32,8 +32,8 @@ func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
 // Actual tests
 //
 
-//TestMerge tests splitting of data streams
-func TestMerge(t *testing.T) {
+//TestJoin tests splitting of data streams
+func TestJoin(t *testing.T) {
 	cases := []struct {
 		name   string
 		input  []byte
@@ -141,7 +141,7 @@ func TestMerge(t *testing.T) {
 				output = bytes.NewBuffer(nil)
 			}
 
-			err := libchunk.Merge(iter, output, c.conf)
+			err := libchunk.Join(iter, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("splitting shouldnt fail but got: %v", err)

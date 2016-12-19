@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-//Merge will read and decrypt chunks for keys provided through the iterator
+//Join will read and decrypt chunks for keys provided through the iterator
 //and writes chunk contents to writer 'w' in order of key appearance.
-func Merge(keys KeyIterator, w io.Writer, conf Config) error {
+func Join(keys KeyIterator, w io.Writer, conf Config) error {
 	for {
 		k, err := keys.Next()
 		if err != nil {
