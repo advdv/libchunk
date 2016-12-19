@@ -1,16 +1,11 @@
 package libchunk
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"net/http"
-
-	"github.com/kr/s3"
 )
 
 func Push(iter KeyIterator, conf Config) error {
-	client := http.Client{}
 
 	//result of working the item
 	type result struct {
@@ -28,20 +23,13 @@ func Push(iter KeyIterator, conf Config) error {
 	work := func(it *item) {
 		chunk, err := conf.Store.Get(it.key)
 		if err != nil {
-			it.resCh <- &result{fmt.Errorf("failed to get chunk '%x' from store: %v", it.key, err)}
+			it.resCh <- &result{fmt.Errorf("failed to get chunk '%s' from store: %v", it.key, err)}
 			return
 		}
 
-		req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s/%x", conf.RemoteScheme, conf.RemoteHost, it.key), bytes.NewReader(chunk))
+		err = conf.Remote.Put(it.key, chunk)
 		if err != nil {
-			it.resCh <- &result{fmt.Errorf("failed to create HTTP request for '%x': %v", it.key, err)}
-			return
-		}
-
-		s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
-		resp, err := client.Do(req)
-		if err != nil || resp == nil || resp.StatusCode != 200 {
-			it.resCh <- &result{fmt.Errorf("failed to perform HTTP request for '%x': %v", it.key, err)}
+			it.resCh <- &result{fmt.Errorf("failed to put chunk '%s' to remote: %v", it.key, err)}
 			return
 		}
 
@@ -49,7 +37,7 @@ func Push(iter KeyIterator, conf Config) error {
 	}
 
 	//fan-out
-	itemCh := make(chan *item, 64)
+	itemCh := make(chan *item, conf.PushConcurrency)
 	go func() {
 		defer close(itemCh)
 		for {

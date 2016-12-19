@@ -34,7 +34,14 @@ type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
 }
 
-//Store holds chunks
+//Remote holds chunks remotely
+type Remote interface {
+
+	//Put a key on the remote
+	Put(k K, chunk []byte) error
+}
+
+//Store holds chunks locally
 type Store interface {
 
 	//will do nothing if exists, must be atomic
@@ -82,6 +89,6 @@ type Config struct {
 	SplitConcurrency int
 	KeyHash          KeyHash
 	Store            Store
-	RemoteHost       string
-	RemoteScheme     string
+	Remote           Remote
+	PushConcurrency  int
 }

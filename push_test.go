@@ -25,8 +25,7 @@ func TestPush(t *testing.T) {
 	}()
 
 	conf := defaultConfig(t)
-	conf.RemoteHost = l.Addr().String()
-	conf.RemoteScheme = "http"
+	conf.Remote = &httpRemote{"http", l.Addr().String(), &http.Client{}}
 
 	cases := []struct {
 		name  string

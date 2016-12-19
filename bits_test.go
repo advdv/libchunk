@@ -2,9 +2,6 @@ package libchunk_test
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -18,12 +15,33 @@ import (
 
 	"github.com/advanderveer/libchunk"
 	"github.com/boltdb/bolt"
-	"github.com/restic/chunker"
+	"github.com/kr/s3"
 )
 
 //
 // Test types
 //
+
+type httpRemote struct {
+	scheme string
+	host   string
+	client *http.Client
+}
+
+func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s/%x", r.scheme, r.host, k), bytes.NewReader(chunk))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request for '%x': %v", k, err)
+	}
+
+	s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
+	resp, err := r.client.Do(req)
+	if err != nil || resp == nil || resp.StatusCode != 200 {
+		return fmt.Errorf("failed to perform HTTP request for '%x': %v", k, err)
+	}
+
+	return nil
+}
 
 type boltStore struct {
 	db         *bolt.DB
@@ -108,33 +126,14 @@ func BenchmarkConfigurations(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	block, err := aes.NewCipher(secret[:])
-	if err != nil {
-		b.Fatalf("failed to create AES block cipher: %v", err)
-	}
-
-	aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
-	if err != nil {
-		b.Fatalf("failed to setup GCM cipher mode: %v", err)
-	}
-
 	defer db.Close()
 	defer os.RemoveAll(dbdir)
 
 	//Default libchunk.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
-		conf := libchunk.Config{
-			Secret:           secret,
-			SplitBufSize:     chunker.MaxSize,
-			SplitConcurrency: 64,
-			AEAD:             aead,
-			KeyHash: func(b []byte) libchunk.K {
-				return sha256.Sum256(b)
-			},
-			Store:        &boltStore{db, []byte("chunks")},
-			RemoteHost:   "localhost:9000",
-			RemoteScheme: "http",
-		}
+		conf := defaultConfig(b)
+		conf.Store = &boltStore{db, []byte("chunks")}
+		conf.Remote = &httpRemote{"http", "localhost:9000", &http.Client{}}
 
 		sizes := []int64{
 			1024,

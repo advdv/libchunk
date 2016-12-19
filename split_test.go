@@ -27,16 +27,16 @@ func (store *failingStore) Get(k libchunk.K) (c []byte, err error) {
 	return c, fmt.Errorf("storage_failed")
 }
 
-func defaultConfig(t *testing.T) libchunk.Config {
+func defaultConfig(t quiter) libchunk.Config {
 	dbdir, err := ioutil.TempDir("", "libchunk_db_")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to create temp dir: %v", err)
 	}
 
 	dbpath := filepath.Join(dbdir, "db.bolt")
 	db, err := bolt.Open(dbpath, 0777, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to open db: %v", err)
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -62,7 +62,8 @@ func defaultConfig(t *testing.T) libchunk.Config {
 		KeyHash: func(b []byte) libchunk.K {
 			return sha256.Sum256(b)
 		},
-		Store: &boltStore{db, []byte("chunks")},
+		Store:           &boltStore{db, []byte("chunks")},
+		PushConcurrency: 64,
 	}
 
 	return conf
