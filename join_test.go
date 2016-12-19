@@ -117,9 +117,9 @@ func TestJoinFromLocal(t *testing.T) {
 		&sliceKeyIterator{0, []libchunk.K{}},
 		func(k libchunk.K, conf libchunk.Config) {
 			switch store := conf.Store.(type) {
-			case *boltStore:
-				err := store.db.Update(func(tx *bolt.Tx) error {
-					return tx.Bucket(store.bucketName).Put(k[:], []byte{0x00})
+			case *libchunk.BoltStore:
+				err := store.DB.Update(func(tx *bolt.Tx) error {
+					return tx.Bucket(libchunk.BoltChunkBucket).Put(k[:], []byte{0x00})
 				})
 
 				if err != nil {

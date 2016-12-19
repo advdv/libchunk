@@ -22,5 +22,3 @@ _testmain.go
 *.exe
 *.test
 *.prof
-
-vendor/github.com/rlmcpherson/s3gof3r/gof3r

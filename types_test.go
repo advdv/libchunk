@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk"
-	"github.com/boltdb/bolt"
 	"github.com/kr/s3"
 	"github.com/restic/chunker"
 )
@@ -99,47 +98,6 @@ func (s *memoryStore) Get(k libchunk.K) (chunk []byte, err error) {
 	}
 
 	return chunk, nil
-}
-
-type boltStore struct {
-	db         *bolt.DB
-	bucketName []byte
-}
-
-func (s *boltStore) Put(k libchunk.K, chunk []byte) (err error) {
-	return s.db.Batch(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists(s.bucketName)
-		if err != nil {
-			return fmt.Errorf("failed to create-if-not-exist: %v", err)
-		}
-
-		existing := b.Get(k[:])
-		if existing != nil {
-			return nil
-		}
-
-		return b.Put(k[:], chunk)
-	})
-}
-
-func (s *boltStore) Get(k libchunk.K) (chunk []byte, err error) {
-	err = s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucketName)
-		if b == nil {
-			return fmt.Errorf("bucket '%s' must first be created", string(s.bucketName))
-		}
-
-		v := b.Get(k[:])
-		if v == nil || len(v) < 1 {
-			return os.ErrNotExist
-		}
-
-		chunk = make([]byte, len(v))
-		copy(chunk, v)
-		return nil
-	})
-
-	return chunk, err
 }
 
 type quiter interface {
@@ -279,17 +237,12 @@ func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
 	}
 
 	dbpath := filepath.Join(dbdir, "db.bolt")
-	db, err := bolt.Open(dbpath, 0777, nil)
+	store, err := libchunk.NewBoltStore(dbpath)
 	if err != nil {
-		t.Fatalf("failed to open db: %v", err)
+		t.Fatalf("failed to setup bolt store: %v", err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("chunks"))
-		return err
-	})
-
-	return withStore(t, conf, &boltStore{db, []byte("chunks")})
+	return withStore(t, conf, store)
 }
 
 func withRemote(t quiter, conf libchunk.Config, remote libchunk.Remote) libchunk.Config {
