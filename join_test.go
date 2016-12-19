@@ -56,7 +56,7 @@ func TestJoinFromLocal(t *testing.T) {
 		input  []byte
 		output io.ReadWriter
 		iter   interface {
-			libchunk.KeyPutter
+			libchunk.KeyHandler
 			libchunk.KeyIterator
 		}
 		corrupt     func(libchunk.K, libchunk.Config)

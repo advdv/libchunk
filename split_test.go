@@ -17,7 +17,7 @@ func TestSplit(t *testing.T) {
 		conf        libchunk.Config
 		minKeys     int
 		expectedErr string
-		keyPutter   libchunk.KeyPutter
+		keyPutter   libchunk.KeyHandler
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
 		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
@@ -52,7 +52,7 @@ func TestSplit(t *testing.T) {
 		conf,
 		0,
 		"handler_failed",
-		&failingSlicePutter{},
+		&failingKeyHandler{},
 	}}
 
 	for _, c := range cases {

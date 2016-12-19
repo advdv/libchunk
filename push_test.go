@@ -14,7 +14,7 @@ func TestPush(t *testing.T) {
 		name  string
 		input []byte
 		iter  interface {
-			libchunk.KeyPutter
+			libchunk.KeyHandler
 			libchunk.KeyIterator
 		}
 		conf        libchunk.Config

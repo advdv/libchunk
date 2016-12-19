@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk"
-	"github.com/kr/s3"
 	"github.com/restic/chunker"
 )
 
@@ -35,7 +34,6 @@ func (r *httpRemote) Get(k libchunk.K) (chunk []byte, err error) {
 		return nil, fmt.Errorf("failed to create HTTP request for '%s': %v", k, err)
 	}
 
-	s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
 	resp, err := r.client.Do(req)
 	if err != nil || resp == nil || resp.StatusCode != 200 {
 		if resp.StatusCode == 404 {
@@ -60,7 +58,6 @@ func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
 		return fmt.Errorf("failed to create HTTP request for '%s': %v", k, err)
 	}
 
-	s3.Sign(req, s3.Keys{AccessKey: "access-key-id", SecretKey: "secret-key-id"})
 	resp, err := r.client.Do(req)
 	if err != nil || resp == nil || resp.StatusCode != 200 {
 		return fmt.Errorf("failed to perform HTTP request for '%x': %v", k, err)
@@ -304,7 +301,7 @@ func (iter *sliceKeyIterator) Reset() {
 	iter.i = 0
 }
 
-func (iter *sliceKeyIterator) Put(k libchunk.K) (err error) {
+func (iter *sliceKeyIterator) Handle(k libchunk.K) (err error) {
 	iter.Keys = append(iter.Keys, k)
 	return nil
 }
@@ -319,8 +316,8 @@ func (iter *sliceKeyIterator) Next() (k libchunk.K, err error) {
 	return k, nil
 }
 
-type failingSlicePutter struct{}
+type failingKeyHandler struct{}
 
-func (iter *failingSlicePutter) Put(k libchunk.K) (err error) {
+func (iter *failingKeyHandler) Handle(k libchunk.K) (err error) {
 	return fmt.Errorf("handler_failed")
 }

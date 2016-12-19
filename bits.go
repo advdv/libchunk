@@ -19,9 +19,9 @@ var (
 	ErrNoSuchKey = errors.New("no such key")
 )
 
-//KeyPutter is used when a key itself needs to be received
-type KeyPutter interface {
-	Put(k K) error
+//KeyHandler is called when a key is outputted
+type KeyHandler interface {
+	Handle(k K) error
 }
 
 //KeyIterator will return keys while calling
@@ -38,12 +38,7 @@ type Chunker interface {
 //Remote holds chunks remotely
 type Remote interface {
 	//@TODO find out how it will differ from the store interface
-
-	//Put a key on the remote
-	Put(k K, chunk []byte) error
-
-	//Get a chunk from the remote
-	Get(k K) (chunk []byte, err error)
+	Store
 }
 
 //Store holds chunks locally

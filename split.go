@@ -9,7 +9,7 @@ import (
 //are stored and encrypted under a content-based key 'k' in the configured store.
 //Compute intensive operations are run concurrently but keys are guaranteed to
 //arrive at 'keyH' in order, i.e: key of the first chunk will be pushed first
-func Split(input Input, h KeyPutter, conf Config) error {
+func Split(input Input, h KeyHandler, conf Config) error {
 	chunker, err := input.Chunker(conf)
 	if err != nil {
 		return fmt.Errorf("failed to determine chunker for input: %v", err)
@@ -91,7 +91,7 @@ func Split(input Input, h KeyPutter, conf Config) error {
 		if res.err != nil {
 			return fmt.Errorf("work failed on chunk '%s': %v", res.key, res.err)
 		} else {
-			err := h.Put(res.key)
+			err := h.Handle(res.key)
 			if err != nil {
 				return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, err)
 			}
