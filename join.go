@@ -30,16 +30,11 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 	work := func(it *item) {
 		getters := []interface {
 			Get(k K) ([]byte, error)
-		}{
-			conf.Store,
-			conf.Remote,
-		}
+		}{conf.Store, conf.Remote}
 
-		var (
-			chunk []byte
-			err   error
-		)
-
+		//ask each key container if it has one
+		var chunk []byte
+		var err error
 		for _, g := range getters {
 			if g == nil {
 				continue

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/advanderveer/libchunk"
@@ -66,6 +65,16 @@ func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
 	}
 
 	return nil
+}
+
+type memoryStore struct{}
+
+func (s *memoryStore) Put(k libchunk.K, chunk []byte) (err error) {
+	return nil
+}
+
+func (s *memoryStore) Get(k libchunk.K) (chunk []byte, err error) {
+	return chunk, nil
 }
 
 type boltStore struct {
@@ -197,70 +206,7 @@ func (store *emptyStore) Get(k libchunk.K) (c []byte, err error) {
 	return c, os.ErrNotExist
 }
 
-func defaultConfigWithRemote(t quiter, remoteChunks map[libchunk.K][]byte) libchunk.Config {
-	conf := defaultConfig(t)
-	l, err := net.Listen("tcp", ":")
-	if err != nil {
-		t.Fatalf("failed to setup test server: %v", err)
-	}
-
-	go func() {
-		t.Fatalf("failed to serve: %v", http.Serve(l, &httpServer{remoteChunks}))
-	}()
-
-	conf.Remote = &httpRemote{"http", l.Addr().String(), &http.Client{}}
-	return conf
-}
-
-func defaultConfig(t quiter) libchunk.Config {
-	dbdir, err := ioutil.TempDir("", "libchunk_db_")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-
-	dbpath := filepath.Join(dbdir, "db.bolt")
-	db, err := bolt.Open(dbpath, 0777, nil)
-	if err != nil {
-		t.Fatalf("failed to open db: %v", err)
-	}
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("chunks"))
-		return err
-	})
-
-	block, err := aes.NewCipher(secret[:])
-	if err != nil {
-		t.Fatalf("failed to create AES block cipher: %v", err)
-	}
-
-	aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
-	if err != nil {
-		t.Fatalf("failed to setup GCM cipher mode: %v", err)
-	}
-
-	conf := libchunk.Config{
-		Secret:           secret,
-		SplitBufSize:     chunker.MaxSize,
-		SplitConcurrency: 64,
-		AEAD:             aead,
-		KeyHash: func(b []byte) libchunk.K {
-			return sha256.Sum256(b)
-		},
-		Store:           &boltStore{db, []byte("chunks")},
-		PushConcurrency: 64,
-	}
-
-	return conf
-}
-
-func forceRemoteConfig(t *testing.T) libchunk.Config {
-	conf := defaultConfigWithRemote(t, nil)
-	conf.Store = &emptyStore{}
-	return conf
-}
-
-func failingStorageConfig(t *testing.T) libchunk.Config {
+func defaultConf(t quiter, secret libchunk.Secret) libchunk.Config {
 	block, err := aes.NewCipher(secret[:])
 	if err != nil {
 		t.Fatalf("failed to create AES block cipher: %v", err)
@@ -279,8 +225,51 @@ func failingStorageConfig(t *testing.T) libchunk.Config {
 		KeyHash: func(b []byte) libchunk.K {
 			return sha256.Sum256(b)
 		},
-		Store: &failingStore{},
+		PushConcurrency: 64,
 	}
+}
+
+func withStore(t quiter, conf libchunk.Config, store libchunk.Store) libchunk.Config {
+	conf.Store = store
+	return conf
+}
+
+func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
+	dbdir, err := ioutil.TempDir("", "libchunk_db_")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	dbpath := filepath.Join(dbdir, "db.bolt")
+	db, err := bolt.Open(dbpath, 0777, nil)
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("chunks"))
+		return err
+	})
+
+	return withStore(t, conf, &boltStore{db, []byte("chunks")})
+}
+
+func withRemote(t quiter, conf libchunk.Config, remote libchunk.Remote) libchunk.Config {
+	conf.Remote = remote
+	return conf
+}
+
+func withHTTPRemote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) libchunk.Config {
+	l, err := net.Listen("tcp", ":")
+	if err != nil {
+		t.Fatalf("failed to setup test server: %v", err)
+	}
+
+	go func() {
+		t.Fatalf("failed to serve: %v", http.Serve(l, &httpServer{chunks}))
+	}()
+
+	return withRemote(t, conf, &httpRemote{"http", l.Addr().String(), &http.Client{}})
 }
 
 type randomBytesInput struct {

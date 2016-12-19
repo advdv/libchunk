@@ -37,6 +37,7 @@ type Chunker interface {
 
 //Remote holds chunks remotely
 type Remote interface {
+	//@TODO find out how it will differ from the store interface
 
 	//Put a key on the remote
 	Put(k K, chunk []byte) error

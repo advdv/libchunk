@@ -42,7 +42,9 @@ func BenchmarkConfigurations(b *testing.B) {
 
 	//Default libchunk.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
-		conf := defaultConfigWithRemote(b, nil)
+		conf := withHTTPRemote(b, withTmpBoltStore(b, defaultConf(b, secret)), nil)
+
+		// conf := defaultConfigWithRemote(b, nil)
 		sizes := []int64{
 			1024,
 			1024 * 1024,

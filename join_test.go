@@ -12,9 +12,11 @@ import (
 )
 
 func TestJoinFromRemote(t *testing.T) {
-	conf := defaultConfigWithRemote(t, map[libchunk.K][]byte{
-		libchunk.K([32]byte{0x01}): []byte("a"),
-	})
+	conf := withHTTPRemote(t, defaultConf(t, secret), map[libchunk.K][]byte{})
+
+	// conf := defaultConfigWithRemote(t, map[libchunk.K][]byte{
+	// 	libchunk.K([32]byte{0x01}): []byte("a"),
+	// })
 
 	_ = conf
 	cases := []struct {
@@ -47,6 +49,8 @@ func TestJoinFromRemote(t *testing.T) {
 
 //TestJoinFromLocal tests splitting of data streams
 func TestJoinFromLocal(t *testing.T) {
+	conf := withTmpBoltStore(t, defaultConf(t, secret))
+
 	cases := []struct {
 		name   string
 		input  []byte
@@ -64,7 +68,7 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		&sliceKeyIterator{0, []libchunk.K{}},
 		nil,
-		defaultConfig(t),
+		conf,
 		"",
 	}, {
 		"key_not_in_db",
@@ -72,7 +76,7 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		&sliceKeyIterator{0, []libchunk.K{libchunk.K([32]byte{})}},
 		nil,
-		defaultConfig(t),
+		conf,
 		"no such key",
 	}, {
 		"storage_failure",
@@ -80,7 +84,7 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		&sliceKeyIterator{0, []libchunk.K{libchunk.K([32]byte{})}},
 		nil,
-		failingStorageConfig(t),
+		withStore(t, defaultConf(t, secret), &failingStore{}),
 		"storage_failed",
 	}, {
 		"iterator_fails",
@@ -88,7 +92,7 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		&failingKeyIterator{},
 		nil,
-		defaultConfig(t),
+		conf,
 		"iterator_failure",
 	}, {
 		"9MiB_random_defaultconf",
@@ -96,7 +100,7 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		&sliceKeyIterator{0, []libchunk.K{}},
 		nil,
-		defaultConfig(t),
+		conf,
 		"",
 	}, {
 		"9MiB_fail_to_write_output",
@@ -104,7 +108,7 @@ func TestJoinFromLocal(t *testing.T) {
 		&failingWriter{bytes.NewBuffer(nil)},
 		&sliceKeyIterator{0, []libchunk.K{}},
 		nil,
-		defaultConfig(t),
+		conf,
 		"writer_failure",
 	}, {
 		"chunk_corrupted",
@@ -125,7 +129,7 @@ func TestJoinFromLocal(t *testing.T) {
 				t.Fatal("cant corrupt '%T'", conf.Store)
 			}
 		},
-		defaultConfig(t),
+		conf,
 		"authentication failed",
 	}}
 

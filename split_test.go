@@ -10,6 +10,7 @@ import (
 
 //TestSplit tests splitting of data streams
 func TestSplit(t *testing.T) {
+	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {
 		name        string
 		input       libchunk.Input
@@ -20,35 +21,35 @@ func TestSplit(t *testing.T) {
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
 		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
-		defaultConfig(t),
+		conf,
 		2,
 		"",
 		nil,
 	}, {
 		"1MiB_random_storage_failed",
 		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
-		failingStorageConfig(t),
+		withStore(t, defaultConf(t, secret), &failingStore{}),
 		0,
 		"storage_failed",
 		nil,
 	}, {
 		"1MiB_random_chunker_failed",
 		&failingChunkerInput{},
-		defaultConfig(t),
+		conf,
 		0,
 		"chunking_failed",
 		nil,
 	}, {
 		"1MiB_input_fails",
 		&failingInput{},
-		defaultConfig(t),
+		conf,
 		0,
 		"input_failed",
 		nil,
 	}, {
 		"1MiB_handler_failed",
 		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
-		defaultConfig(t),
+		conf,
 		0,
 		"handler_failed",
 		&failingSlicePutter{},

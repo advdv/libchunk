@@ -9,6 +9,7 @@ import (
 )
 
 func TestPush(t *testing.T) {
+	conf := withTmpBoltStore(t, withHTTPRemote(t, defaultConf(t, secret), nil))
 	cases := []struct {
 		name  string
 		input []byte
@@ -22,7 +23,7 @@ func TestPush(t *testing.T) {
 		"9MiB_random_defaultconf",
 		randb(9 * 1024 * 1024),
 		&sliceKeyIterator{0, []libchunk.K{}},
-		defaultConfigWithRemote(t, nil),
+		conf,
 		"",
 	}}
 
