@@ -33,7 +33,7 @@ func TestPush(t *testing.T) {
 			if c.input != nil {
 				err := libchunk.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
 				if err != nil {
-					t.Fatal("failed to spit first: %v", err)
+					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 

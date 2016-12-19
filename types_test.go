@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/advanderveer/libchunk"
@@ -28,7 +30,8 @@ type httpRemote struct {
 }
 
 func (r *httpRemote) Get(k libchunk.K) (chunk []byte, err error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k), nil)
+	loc := fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k)
+	req, err := http.NewRequest("GET", loc, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request for '%s': %v", k, err)
 	}
@@ -40,7 +43,7 @@ func (r *httpRemote) Get(k libchunk.K) (chunk []byte, err error) {
 			return nil, os.ErrNotExist
 		}
 
-		return nil, fmt.Errorf("failed to perform HTTP request for '%s': %v", k, err)
+		return nil, fmt.Errorf("failed to perform HTTP request for '%s', status: %s, err: %v, url: %s", k, resp.Status, err, loc)
 	}
 
 	defer resp.Body.Close()
@@ -68,21 +71,27 @@ func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
 }
 
 type memoryStore struct {
+	*sync.Mutex
 	chunks map[libchunk.K][]byte
 }
 
 func NewMemoryStore() *memoryStore {
 	return &memoryStore{
+		Mutex:  &sync.Mutex{},
 		chunks: map[libchunk.K][]byte{},
 	}
 }
 
 func (s *memoryStore) Put(k libchunk.K, chunk []byte) (err error) {
+	s.Lock()
+	defer s.Unlock()
 	s.chunks[k] = chunk
 	return nil
 }
 
 func (s *memoryStore) Get(k libchunk.K) (chunk []byte, err error) {
+	s.Lock()
+	defer s.Unlock()
 	var ok bool
 	chunk, ok = s.chunks[k]
 	if !ok {
@@ -174,15 +183,27 @@ func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
 }
 
 type httpServer struct {
+	*sync.Mutex
 	chunks map[libchunk.K][]byte
 }
 
+func newHTTPServer(chunks map[libchunk.K][]byte) *httpServer {
+	return &httpServer{
+		Mutex:  &sync.Mutex{},
+		chunks: chunks,
+	}
+}
+
 func (srv *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	srv.Lock()
+	defer srv.Unlock()
+
 	if r.Method == "POST" {
 		io.Copy(ioutil.Discard, r.Body)
 	} else {
 		k, err := libchunk.DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
 		if err != nil {
+			log.Println("failed to decode", err, r.URL.String())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -195,6 +216,7 @@ func (srv *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		_, err = io.Copy(w, bytes.NewReader(chunk))
 		if err != nil {
+			log.Println("failed to copy chunk", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -282,7 +304,7 @@ func withHTTPRemote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte
 	}
 
 	go func() {
-		t.Fatalf("failed to serve: %v", http.Serve(l, &httpServer{chunks}))
+		t.Fatalf("failed to serve: %v", http.Serve(l, newHTTPServer(chunks)))
 	}()
 
 	return withRemote(t, conf, &httpRemote{"http", l.Addr().String(), &http.Client{}})
@@ -318,4 +340,34 @@ func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
 
 func (input *failingInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
 	return input, fmt.Errorf("input_failed")
+}
+
+type sliceKeyIterator struct {
+	i    int
+	Keys []libchunk.K
+}
+
+func (iter *sliceKeyIterator) Reset() {
+	iter.i = 0
+}
+
+func (iter *sliceKeyIterator) Put(k libchunk.K) (err error) {
+	iter.Keys = append(iter.Keys, k)
+	return nil
+}
+
+func (iter *sliceKeyIterator) Next() (k libchunk.K, err error) {
+	if iter.i > len(iter.Keys)-1 {
+		return k, io.EOF
+	}
+
+	k = iter.Keys[iter.i]
+	iter.i++
+	return k, nil
+}
+
+type failingSlicePutter struct{}
+
+func (iter *failingSlicePutter) Put(k libchunk.K) (err error) {
+	return fmt.Errorf("handler_failed")
 }

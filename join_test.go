@@ -39,6 +39,10 @@ func TestJoinFromRemote(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
+			if !bytes.Equal(buf.Bytes(), data) {
+				t.Fatalf("expected joined output from remote to be equal to input, input len %d output len %d", len(data), buf.Len())
+			}
 		})
 	}
 }
@@ -119,10 +123,10 @@ func TestJoinFromLocal(t *testing.T) {
 				})
 
 				if err != nil {
-					t.Error("failed to corrupt store: %v", err)
+					t.Errorf("failed to corrupt store: %v", err)
 				}
 			default:
-				t.Fatal("cant corrupt '%T'", conf.Store)
+				t.Fatalf("cant corrupt '%T'", conf.Store)
 			}
 		},
 		conf,
@@ -135,7 +139,7 @@ func TestJoinFromLocal(t *testing.T) {
 			if c.input != nil {
 				err := libchunk.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
 				if err != nil {
-					t.Fatal("failed to spit first: %v", err)
+					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 
@@ -170,7 +174,7 @@ func TestJoinFromLocal(t *testing.T) {
 			if c.input != nil && c.corrupt == nil && output != nil {
 				outdata, err := ioutil.ReadAll(output)
 				if err != nil {
-					t.Fatal("failed to read to compare output: %v", err)
+					t.Fatalf("failed to read to compare output: %v", err)
 				}
 
 				if !bytes.Equal(c.input, outdata) {

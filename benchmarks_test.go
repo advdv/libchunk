@@ -8,16 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/advanderveer/libchunk"
-	"github.com/boltdb/bolt"
 )
-
-//
-// Test types
-//
 
 func BenchmarkConfigurations(b *testing.B) {
 	go func() {
@@ -26,25 +20,8 @@ func BenchmarkConfigurations(b *testing.B) {
 		})))
 	}()
 
-	dbdir, err := ioutil.TempDir("", "libchunk_db_")
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	dbpath := filepath.Join(dbdir, "db.bolt")
-	db, err := bolt.Open(dbpath, 0777, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	defer db.Close()
-	defer os.RemoveAll(dbdir)
-
 	//Default libchunk.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
-		conf := withHTTPRemote(b, withTmpBoltStore(b, defaultConf(b, secret)), nil)
-
-		// conf := defaultConfigWithRemote(b, nil)
 		sizes := []int64{
 			1024,
 			1024 * 1024,
@@ -53,6 +30,8 @@ func BenchmarkConfigurations(b *testing.B) {
 		}
 
 		for _, s := range sizes {
+			conf := withHTTPRemote(b, withTmpBoltStore(b, defaultConf(b, secret)), nil)
+
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
 				keys := []libchunk.K{}
@@ -61,20 +40,48 @@ func BenchmarkConfigurations(b *testing.B) {
 				})
 
 				b.Run("join", func(b *testing.B) {
-					benchmarkBoltRandomReadsMergeToFile(b, keys, data, conf)
+					benchmarkBoltRandomReadsJoinToFile(b, keys, data, conf)
 				})
 
 				b.Run("push", func(b *testing.B) {
 					benchmarkBoltRandomReadsPushToLocalHTTP(b, keys, data, conf)
 				})
 
-				//@TODO benchmark this
-				// b.Run("join-from-remote", func(b *testing.B) {
-				// 	benchmarkBoltRandomReadsMergeToFile(b, keys, data, conf)
-				// })
+				b.Run("join-from-remote", func(b *testing.B) {
+					benchmarkRemoteJoinToFile(b, data, conf)
+				})
 			})
 		}
 	})
+}
+
+func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) {
+	keys := &sliceKeyIterator{}
+	store := NewMemoryStore()
+	input := &randomBytesInput{bytes.NewReader(data)}
+	err := libchunk.Split(input, keys, withStore(b, defaultConf(b, secret), store))
+	if err != nil {
+		b.Fatalf("couldnt split for test prep: %v", err)
+	}
+
+	conf = withStore(b, conf, nil)               //disable local store
+	conf = withHTTPRemote(b, conf, store.chunks) //use chunks stored in memory
+
+	b.SetBytes(int64(len(data)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		outf, err := ioutil.TempFile("", "libchunk_")
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		defer os.Remove(outf.Name())
+		err = libchunk.Join(keys, outf, conf)
+		outf.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf libchunk.Config) (keys []libchunk.K) {
@@ -98,37 +105,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	return keys
 }
 
-type sliceKeyIterator struct {
-	i    int
-	Keys []libchunk.K
-}
-
-func (iter *sliceKeyIterator) Reset() {
-	iter.i = 0
-}
-
-func (iter *sliceKeyIterator) Put(k libchunk.K) (err error) {
-	iter.Keys = append(iter.Keys, k)
-	return nil
-}
-
-func (iter *sliceKeyIterator) Next() (k libchunk.K, err error) {
-	if iter.i > len(iter.Keys)-1 {
-		return k, io.EOF
-	}
-
-	k = iter.Keys[iter.i]
-	iter.i++
-	return k, nil
-}
-
-type failingSlicePutter struct{}
-
-func (iter *failingSlicePutter) Put(k libchunk.K) (err error) {
-	return fmt.Errorf("handler_failed")
-}
-
-func benchmarkBoltRandomReadsMergeToFile(b *testing.B, keys []libchunk.K, data []byte, conf libchunk.Config) {
+func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []libchunk.K, data []byte, conf libchunk.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {

@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+//Push will attempt to move all keys provided by KeyIterator 'iter' to the remote
+//configured in Config 'conf'.
 func Push(iter KeyIterator, conf Config) error {
 
 	//result of working the item

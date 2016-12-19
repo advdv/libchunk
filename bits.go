@@ -77,15 +77,15 @@ type K [32]byte
 //Returns the key encoded such that it is human readable, with only
 //ASCII characters but is yet space efficient.
 func (k K) String() string {
-	return base64.StdEncoding.EncodeToString(k[:])
+	return base64.URLEncoding.EncodeToString(k[:])
 }
 
 //DecodeKey attempts to read a key from a byteslice
 func DecodeKey(b []byte) (k K, err error) {
-	buf := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
-	n, err := base64.StdEncoding.Decode(buf, b)
+	buf := make([]byte, base64.URLEncoding.DecodedLen(len(b)))
+	n, err := base64.URLEncoding.Decode(buf, b)
 	if err != nil {
-		return k, fmt.Errorf("failed to decode '%x' as key: %v", b, err)
+		return k, fmt.Errorf("failed to decode '%s' as key: %v", b, err)
 	}
 
 	if n != KeySize {
