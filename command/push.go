@@ -2,17 +2,20 @@ package command
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mitchellh/cli"
 )
 
 //Push command
-type Push struct{}
+type Push struct {
+	ui cli.Ui
+}
 
 //PushFactory returns a factory method for the push command
 func PushFactory() func() (cmd cli.Command, err error) {
 	return func() (cli.Command, error) {
-		return &Push{}, nil
+		return &Push{&cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr}}, nil
 	}
 }
 
@@ -35,5 +38,15 @@ func (cmd *Push) Synopsis() string {
 // command-line arguments. It returns the exit status when it is
 // finished.
 func (cmd *Push) Run(args []string) int {
+	if err := cmd.DoRun(args); err != nil {
+		cmd.ui.Error(err.Error())
+		return 1
+	}
+
 	return 0
+}
+
+//DoRun is called by run and allows an error to be returned
+func (cmd *Push) DoRun(args []string) error {
+	return fmt.Errorf("not implemented")
 }

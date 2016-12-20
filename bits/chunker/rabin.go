@@ -12,8 +12,8 @@ type RabinChunker struct {
 	chunker *chunker.Chunker
 }
 
-//NewRabidChunker creates a chunker that uses a rolling rabin checksum
-func NewRabidChunker(r io.Reader, pol chunker.Pol) *RabinChunker {
+//NewRabinChunker creates a chunker that uses a rolling rabin checksum
+func NewRabinChunker(r io.Reader, pol chunker.Pol) *RabinChunker {
 	return &RabinChunker{
 		buf:     make([]byte, chunker.MaxSize),
 		chunker: chunker.New(r, pol),

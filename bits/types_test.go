@@ -161,7 +161,7 @@ type randomBytesInput struct {
 
 func randBytesInput(r io.Reader, secret bits.Secret) *randomBytesInput {
 	return &randomBytesInput{
-		InputChunker: bitschunker.NewRabidChunker(r, secret.Pol()),
+		InputChunker: bitschunker.NewRabinChunker(r, secret.Pol()),
 	}
 }
 

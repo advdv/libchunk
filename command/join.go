@@ -2,17 +2,20 @@ package command
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mitchellh/cli"
 )
 
 //Join command
-type Join struct{}
+type Join struct {
+	ui cli.Ui
+}
 
 //JoinFactory returns a factory method for the join command
 func JoinFactory() func() (cmd cli.Command, err error) {
 	return func() (cli.Command, error) {
-		return &Join{}, nil
+		return &Join{&cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr}}, nil
 	}
 }
 
@@ -35,5 +38,15 @@ func (cmd *Join) Synopsis() string {
 // command-line arguments. It returns the exit status when it is
 // finished.
 func (cmd *Join) Run(args []string) int {
+	if err := cmd.DoRun(args); err != nil {
+		cmd.ui.Error(err.Error())
+		return 1
+	}
+
 	return 0
+}
+
+//DoRun is called by run and allows an error to be returned
+func (cmd *Join) DoRun(args []string) error {
+	return fmt.Errorf("not implemented")
 }
