@@ -14,42 +14,42 @@ func TestSplit(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {
 		name        string
-		input       bits.Input
+		input       bits.InputChunker
 		conf        bits.Config
 		minKeys     int
 		expectedErr string
 		keyPutter   bits.KeyHandler
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
-		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
+		randBytesInput(bytes.NewBuffer(randb(9*1024*1024)), secret),
 		conf,
 		2,
 		"",
 		nil,
 	}, {
 		"1MiB_random_storage_failed",
-		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
+		randBytesInput(bytes.NewBuffer(randb(1024*1024)), secret),
 		withStore(t, defaultConf(t, secret), &failingStore{}),
 		0,
 		"storage_failed",
 		nil,
 	}, {
 		"1MiB_random_chunker_failed",
-		&failingChunkerInput{},
+		&failingChunker{},
 		conf,
 		0,
 		"chunking_failed",
 		nil,
 	}, {
-		"1MiB_input_fails",
-		&failingInput{},
+		"1MiB_chunking_fail",
+		&failingChunker{},
 		conf,
 		0,
-		"input_failed",
+		"chunking_failed",
 		nil,
 	}, {
 		"1MiB_handler_failed",
-		&randomBytesInput{bytes.NewBuffer(randb(1024 * 1024))},
+		randBytesInput(bytes.NewBuffer(randb(1024*1024)), secret),
 		conf,
 		0,
 		"handler_failed",

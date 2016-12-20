@@ -5,15 +5,11 @@ import (
 	"io"
 )
 
-//Split reads a stream of bytes on 'r' and creates variable-sized chunks that
-//are stored and encrypted under a content-based key 'k' in the configured store.
-//Compute intensive operations are run concurrently but keys are guaranteed to
-//arrive at 'keyH' in order, i.e: key of the first chunk will be pushed first
-func Split(input Input, h KeyHandler, conf Config) error {
-	chunker, err := input.Chunker(conf)
-	if err != nil {
-		return fmt.Errorf("failed to determine chunker for input: %v", err)
-	}
+//Split reads chunks from an input chunker and stores each encrypted under a
+//content-based key 'k' in the configured store. Compute intensive operations
+//are run concurrently but keys are guaranteed to arrive at 'keyH' in order,
+//i.e: key of the first chunk will be pushed first
+func Split(chunker InputChunker, h KeyHandler, conf Config) error {
 
 	//result of working an item
 	type result struct {
@@ -42,10 +38,9 @@ func Split(input Input, h KeyHandler, conf Config) error {
 	itemCh := make(chan *item, conf.SplitConcurrency)
 	go func() {
 		defer close(itemCh)
-		buf := make([]byte, conf.SplitBufSize)
 		pos := int64(0)
 		for {
-			chunk, err := chunker.Next(buf)
+			chunk, err := chunker.Next()
 			if err != nil {
 				if err != io.EOF {
 					itemCh <- &item{
@@ -58,13 +53,10 @@ func Split(input Input, h KeyHandler, conf Config) error {
 
 			it := &item{
 				pos:   pos,
-				chunk: make([]byte, chunk.Length),
+				chunk: chunk,
 				resCh: make(chan *result),
 			}
 
-			//the chunker reuses the buffer that underpins the chunk.Data
-			//causing concurrent work to access unexpected data
-			copy(it.chunk, chunk.Data)
 			go work(it)  //create work
 			itemCh <- it //send to fan-in for syncing results
 			pos++

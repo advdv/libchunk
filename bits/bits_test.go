@@ -60,7 +60,7 @@ func BenchmarkConfigurations(b *testing.B) {
 func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf bits.Config) {
 	keys := &bitsiterator.MemIterator{}
 	store := bitsstore.NewMemStore()
-	input := &randomBytesInput{bytes.NewReader(data)}
+	input := randBytesInput(bytes.NewReader(data), secret)
 	err := bits.Split(input, keys, withStore(b, defaultConf(b, secret), store))
 	if err != nil {
 		b.Fatalf("couldnt split for test prep: %v", err)
@@ -90,7 +90,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf b
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		input := &randomBytesInput{bytes.NewBuffer(data)}
+		input := randBytesInput(bytes.NewReader(data), secret)
 		h := &bitsiterator.MemIterator{}
 		err := bits.Split(input, h, conf)
 

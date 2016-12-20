@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/chunker"
 	"github.com/advanderveer/libchunk/bits/iterator"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 
-	"github.com/restic/chunker"
 	"github.com/smartystreets/go-aws-auth"
 )
 
@@ -97,7 +97,6 @@ func defaultConf(t quiter, secret bits.Secret) bits.Config {
 
 	return bits.Config{
 		Secret:           secret,
-		SplitBufSize:     chunker.MaxSize,
 		SplitConcurrency: 64,
 		PushConcurrency:  64,
 		JoinConcurrency:  10,
@@ -157,36 +156,32 @@ func withS3Remote(t quiter, conf bits.Config, chunks map[bits.K][]byte) bits.Con
 }
 
 type randomBytesInput struct {
-	io.Reader
+	bits.InputChunker
 }
 
-func (input *randomBytesInput) Chunker(conf bits.Config) (bits.Chunker, error) {
-	return chunker.New(input, conf.Secret.Pol()), nil
+func randBytesInput(r io.Reader, secret bits.Secret) *randomBytesInput {
+	return &randomBytesInput{
+		InputChunker: bitschunker.NewRabidChunker(r, secret.Pol()),
+	}
 }
 
-type failingChunkerInput struct {
-	*bytes.Buffer
-}
+// func (input *randomBytesInput) Chunker(conf bits.Config) (bits.Chunker, error) {
+// 	return chunker.New(input, conf.Secret.Pol()), nil
+// }
 
-func (input *failingChunkerInput) Next([]byte) (c chunker.Chunk, err error) {
+type failingChunker struct{}
+
+func (input *failingChunker) Next() (c []byte, err error) {
 	return c, fmt.Errorf("chunking_failed")
 }
 
-func (input *failingChunkerInput) Chunker(conf bits.Config) (bits.Chunker, error) {
-	return input, nil
-}
-
-type failingInput struct {
-	*bytes.Buffer
-}
-
-func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
-	return c, nil
-}
-
-func (input *failingInput) Chunker(conf bits.Config) (bits.Chunker, error) {
-	return input, fmt.Errorf("input_failed")
-}
+// type failingInput struct {
+// 	*bytes.Buffer
+// }
+//
+// func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
+// 	return c, fmt.Errorf("input_failed")
+// }
 
 type failingKeyHandler struct{}
 

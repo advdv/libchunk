@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/index"
 	"github.com/advanderveer/libchunk/bits/iterator"
 )
 
@@ -31,7 +32,7 @@ func TestPush(t *testing.T) {
 			"9MiB_random_defaultconf_index",
 			randb(9 * 1024 * 1024),
 			bitsiterator.NewMemIterator(),
-			withIndex(t, conf, bitsiterator.NewMemIterator()),
+			withIndex(t, conf, bitsindex.NewMemIndex()),
 			"",
 		}}
 
@@ -39,7 +40,8 @@ func TestPush(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			iter := c.iter
 			if c.input != nil {
-				err := bits.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
+
+				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), iter, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}

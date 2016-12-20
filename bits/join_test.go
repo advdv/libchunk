@@ -18,7 +18,7 @@ func TestJoinFromRemote(t *testing.T) {
 	data := randb(9 * 1024 * 1024)
 	keys := bitsiterator.NewMemIterator()
 	store := bitsstore.NewMemStore()
-	input := &randomBytesInput{bytes.NewReader(data)}
+	input := randBytesInput(bytes.NewReader(data), secret)
 	err := bits.Split(input, keys, withStore(t, defaultConf(t, secret), store))
 	if err != nil {
 		t.Fatalf("couldnt split for test prep: %v", err)
@@ -140,7 +140,7 @@ func TestJoinFromLocal(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			iter := c.iter
 			if c.input != nil {
-				err := bits.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
+				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), iter, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}

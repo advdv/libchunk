@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/restic/chunker"
 )
@@ -30,9 +29,9 @@ type KeyIterator interface {
 	Next() (K, error)
 }
 
-//Chunker allows users to read a chunks of data at a time
-type Chunker interface {
-	Next(data []byte) (chunker.Chunk, error)
+//InputChunker allows users to read a chunks of data at a time
+type InputChunker interface {
+	Next() ([]byte, error)
 }
 
 //KeyIndex holds information about just the chunk keys
@@ -100,21 +99,15 @@ func DecodeKey(b []byte) (k K, err error) {
 	return k, nil
 }
 
-//Input is a reader that can determine how it will be chunked
-type Input interface {
-	io.Reader
-	Chunker(conf Config) (Chunker, error)
-}
-
 //Config describes how the library's Split, Join and Push behaves
 type Config struct {
-	AEAD             cipher.AEAD
-	Secret           Secret
-	SplitBufSize     int64
+	Secret  Secret
+	AEAD    cipher.AEAD
+	KeyHash KeyHash
+
 	SplitConcurrency int
 	PushConcurrency  int
 	JoinConcurrency  int
-	KeyHash          KeyHash
 
 	Store  Store
 	Remote Remote
