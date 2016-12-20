@@ -9,7 +9,7 @@ import (
 )
 
 func TestPush(t *testing.T) {
-	conf := withTmpBoltStore(t, withHTTPRemote(t, defaultConf(t, secret), nil))
+	conf := withTmpBoltStore(t, withS3Remote(t, defaultConf(t, secret), nil))
 	cases := []struct {
 		name  string
 		input []byte

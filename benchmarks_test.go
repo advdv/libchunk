@@ -30,7 +30,7 @@ func BenchmarkConfigurations(b *testing.B) {
 		}
 
 		for _, s := range sizes {
-			conf := withHTTPRemote(b, withTmpBoltStore(b, defaultConf(b, secret)), nil)
+			conf := withS3Remote(b, withTmpBoltStore(b, defaultConf(b, secret)), nil)
 
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
@@ -57,15 +57,15 @@ func BenchmarkConfigurations(b *testing.B) {
 
 func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) {
 	keys := &sliceKeyIterator{}
-	store := NewMemoryStore()
+	store := libchunk.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
 	err := libchunk.Split(input, keys, withStore(b, defaultConf(b, secret), store))
 	if err != nil {
 		b.Fatalf("couldnt split for test prep: %v", err)
 	}
 
-	conf = withStore(b, conf, nil)               //disable local store
-	conf = withHTTPRemote(b, conf, store.chunks) //use chunks stored in memory
+	conf = withStore(b, conf, nil)             //disable local store
+	conf = withS3Remote(b, conf, store.Chunks) //use chunks stored in memory
 
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()

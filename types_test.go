@@ -8,50 +8,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/advanderveer/libchunk"
 	"github.com/restic/chunker"
 	"github.com/smartystreets/go-aws-auth"
 )
-
-type memoryStore struct {
-	*sync.Mutex
-	chunks map[libchunk.K][]byte
-}
-
-func NewMemoryStore() *memoryStore {
-	return &memoryStore{
-		Mutex:  &sync.Mutex{},
-		chunks: map[libchunk.K][]byte{},
-	}
-}
-
-func (s *memoryStore) Put(k libchunk.K, chunk []byte) (err error) {
-	s.Lock()
-	defer s.Unlock()
-	s.chunks[k] = chunk
-	return nil
-}
-
-func (s *memoryStore) Get(k libchunk.K) (chunk []byte, err error) {
-	s.Lock()
-	defer s.Unlock()
-	var ok bool
-	chunk, ok = s.chunks[k]
-	if !ok {
-		return chunk, os.ErrNotExist
-	}
-
-	return chunk, nil
-}
 
 type quiter interface {
 	Fatalf(format string, args ...interface{})
@@ -91,47 +58,6 @@ type failingKeyIterator struct {
 
 func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
 	return k, fmt.Errorf("iterator_failure")
-}
-
-type httpServer struct {
-	*sync.Mutex
-	chunks map[libchunk.K][]byte
-}
-
-func newHTTPServer(chunks map[libchunk.K][]byte) *httpServer {
-	return &httpServer{
-		Mutex:  &sync.Mutex{},
-		chunks: chunks,
-	}
-}
-
-func (srv *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	srv.Lock()
-	defer srv.Unlock()
-
-	if r.Method == "PUT" {
-		io.Copy(ioutil.Discard, r.Body)
-	} else {
-		k, err := libchunk.DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
-		if err != nil {
-			log.Println("failed to decode", err, r.URL.String())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		chunk, ok := srv.chunks[k]
-		if !ok {
-			w.WriteHeader(404)
-			return
-		}
-
-		_, err = io.Copy(w, bytes.NewReader(chunk))
-		if err != nil {
-			log.Println("failed to copy chunk", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
 }
 
 type failingStore struct{}
@@ -203,14 +129,17 @@ func withRemote(t quiter, conf libchunk.Config, remote libchunk.Remote) libchunk
 	return conf
 }
 
-func withHTTPRemote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) libchunk.Config {
+func withS3Remote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) libchunk.Config {
 	l, err := net.Listen("tcp", ":")
 	if err != nil {
 		t.Fatalf("failed to setup test server: %v", err)
 	}
 
 	go func() {
-		t.Fatalf("failed to serve: %v", http.Serve(l, newHTTPServer(chunks)))
+		store := libchunk.NewMemStore()
+		store.Chunks = chunks
+
+		t.Fatalf("failed to serve: %v", http.Serve(l, store))
 	}()
 
 	return withRemote(t, conf, libchunk.NewS3Remote("http", l.Addr().String(), "", awsauth.Credentials{}))

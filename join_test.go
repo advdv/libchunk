@@ -14,14 +14,14 @@ import (
 func TestJoinFromRemote(t *testing.T) {
 	data := randb(9 * 1024 * 1024)
 	keys := &sliceKeyIterator{}
-	store := NewMemoryStore()
+	store := libchunk.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
 	err := libchunk.Split(input, keys, withStore(t, defaultConf(t, secret), store))
 	if err != nil {
 		t.Fatalf("couldnt split for test prep: %v", err)
 	}
 
-	conf := withHTTPRemote(t, defaultConf(t, secret), store.chunks)
+	conf := withS3Remote(t, defaultConf(t, secret), store.Chunks)
 	cases := []struct {
 		name string
 		conf libchunk.Config
