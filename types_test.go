@@ -19,52 +19,8 @@ import (
 
 	"github.com/advanderveer/libchunk"
 	"github.com/restic/chunker"
+	"github.com/smartystreets/go-aws-auth"
 )
-
-type httpRemote struct {
-	scheme string
-	host   string
-	client *http.Client
-}
-
-func (r *httpRemote) Get(k libchunk.K) (chunk []byte, err error) {
-	loc := fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k)
-	req, err := http.NewRequest("GET", loc, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request for '%s': %v", k, err)
-	}
-
-	resp, err := r.client.Do(req)
-	if err != nil || resp == nil || resp.StatusCode != 200 {
-		if resp.StatusCode == 404 {
-			return nil, os.ErrNotExist
-		}
-
-		return nil, fmt.Errorf("failed to perform HTTP request for '%s', status: %s, err: %v, url: %s", k, resp.Status, err, loc)
-	}
-
-	defer resp.Body.Close()
-	chunk, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read HTTP response body: %v", err)
-	}
-
-	return chunk, nil
-}
-
-func (r *httpRemote) Put(k libchunk.K, chunk []byte) (err error) {
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k), bytes.NewReader(chunk))
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP request for '%s': %v", k, err)
-	}
-
-	resp, err := r.client.Do(req)
-	if err != nil || resp == nil || resp.StatusCode != 200 {
-		return fmt.Errorf("failed to perform HTTP request for '%x': %v", k, err)
-	}
-
-	return nil
-}
 
 type memoryStore struct {
 	*sync.Mutex
@@ -153,7 +109,7 @@ func (srv *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	srv.Lock()
 	defer srv.Unlock()
 
-	if r.Method == "POST" {
+	if r.Method == "PUT" {
 		io.Copy(ioutil.Discard, r.Body)
 	} else {
 		k, err := libchunk.DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
@@ -257,7 +213,7 @@ func withHTTPRemote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte
 		t.Fatalf("failed to serve: %v", http.Serve(l, newHTTPServer(chunks)))
 	}()
 
-	return withRemote(t, conf, &httpRemote{"http", l.Addr().String(), &http.Client{}})
+	return withRemote(t, conf, libchunk.NewS3Remote("http", l.Addr().String(), "", awsauth.Credentials{}))
 }
 
 type randomBytesInput struct {

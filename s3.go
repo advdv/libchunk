@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	awsauth "github.com/smartystreets/go-aws-auth"
+	"github.com/smartystreets/go-aws-auth"
 )
 
 //S3Remote will put and get chunks from an AWS S3 (compatible) interface
@@ -21,7 +21,8 @@ type S3Remote struct {
 
 //NewS3Remote sets up a HTTP client that allows chunks to be pushed to an S3
 //compatible object store. Its request will take on the following template
-//<scheme>://<host>/<prefix>/<key>
+//<scheme>://<host>/<prefix>/<key>. When the access_key_id is set in the
+//credentials, request will we signed prior to sending
 func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remote {
 	if scheme == "" {
 		scheme = "https"
@@ -36,9 +37,17 @@ func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remo
 	}
 }
 
+func (r *S3Remote) rawKeyURL(k K) string {
+	if r.prefix == "" {
+		return fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k)
+	}
+
+	return fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
+}
+
 //Put uploads a chunk to an S3 object store under the provided key 'k'
 func (r *S3Remote) Put(k K, chunk []byte) error {
-	raw := fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
+	raw := r.rawKeyURL(k)
 	loc, err := url.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
@@ -49,7 +58,10 @@ func (r *S3Remote) Put(k K, chunk []byte) error {
 		return fmt.Errorf("failed to create PUT request: %v", err)
 	}
 
-	awsauth.Sign(req, r.creds)
+	if r.creds.AccessKeyID != "" {
+		awsauth.Sign(req, r.creds)
+	}
+
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to perform PUT request: %v", err)
@@ -70,7 +82,7 @@ func (r *S3Remote) Put(k K, chunk []byte) error {
 
 //Get attempts to download chunk 'k' from an S3 object store
 func (r *S3Remote) Get(k K) (chunk []byte, err error) {
-	raw := fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
+	raw := r.rawKeyURL(k)
 	loc, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
@@ -81,7 +93,10 @@ func (r *S3Remote) Get(k K) (chunk []byte, err error) {
 		return nil, fmt.Errorf("failed to create PUT request: %v", err)
 	}
 
-	awsauth.Sign(req, r.creds)
+	if r.creds.AccessKeyID != "" {
+		awsauth.Sign(req, r.creds)
+	}
+
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform PUT request: %v", err)

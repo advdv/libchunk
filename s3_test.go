@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk"
-	awsauth "github.com/smartystreets/go-aws-auth"
+	"github.com/smartystreets/go-aws-auth"
 )
 
 func envRemote(t *testing.T) *libchunk.S3Remote {
@@ -25,7 +25,11 @@ func envRemote(t *testing.T) *libchunk.S3Remote {
 	return libchunk.NewS3Remote("https", host, "tests", creds)
 }
 
-func TestS3PutGet(t *testing.T) {
+func TestActualS3PutGet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipped in short mode")
+	}
+
 	var remote libchunk.Remote
 	remote = envRemote(t)
 
