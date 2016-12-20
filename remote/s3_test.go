@@ -1,16 +1,35 @@
-package libchunk_test
+package bitsremote_test
 
 import (
 	"bytes"
 	"crypto/sha256"
+	"io"
+	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/remote"
 	"github.com/smartystreets/go-aws-auth"
 )
 
-func envRemote(t *testing.T) *libchunk.S3Remote {
+func randr(size int64) io.Reader {
+	return io.LimitReader(rand.New(rand.NewSource(time.Now().UnixNano())), size)
+}
+
+func randb(size int64) []byte {
+	b, err := ioutil.ReadAll(randr(size))
+	if err != nil {
+		panic(err)
+	}
+
+	return b
+}
+
+func envRemote(t *testing.T) *bitsremote.S3Remote {
 	creds := awsauth.Credentials{
 		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
@@ -22,7 +41,7 @@ func envRemote(t *testing.T) *libchunk.S3Remote {
 		return nil
 	}
 
-	return libchunk.NewS3Remote("https", host, "tests", creds)
+	return bitsremote.NewS3Remote("https", host, "tests", creds)
 }
 
 func TestActualS3PutGet(t *testing.T) {
@@ -50,7 +69,7 @@ func TestActualS3PutGet(t *testing.T) {
 		t.Fatal("expected input and output to be the same")
 	}
 
-	iter := &sliceKeyIterator{}
+	iter := bitsiterator.NewMemIterator()
 	err = remote.Index(iter)
 	if err != nil {
 		t.Fatalf("key indexing of remote shouldnt fail: %v", err)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
 )
 
 //TestSplit tests splitting of data streams
@@ -61,7 +62,7 @@ func TestSplit(t *testing.T) {
 			var keys []libchunk.K
 			var err error
 			if c.keyPutter == nil {
-				h := &sliceKeyIterator{}
+				h := bitsiterator.NewMemIterator()
 				err = libchunk.Split(c.input, h, c.conf)
 				keys = h.Keys
 

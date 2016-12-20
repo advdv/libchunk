@@ -8,13 +8,16 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/store"
+
 	"github.com/boltdb/bolt"
 )
 
 func TestJoinFromRemote(t *testing.T) {
 	data := randb(9 * 1024 * 1024)
-	keys := &sliceKeyIterator{}
-	store := libchunk.NewMemStore()
+	keys := bitsiterator.NewMemIterator()
+	store := bitsstore.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
 	err := libchunk.Split(input, keys, withStore(t, defaultConf(t, secret), store))
 	if err != nil {
@@ -66,7 +69,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"no_keys_provided",
 		nil,
 		nil,
-		&sliceKeyIterator{0, []libchunk.K{}},
+		bitsiterator.NewMemIterator(),
 		nil,
 		conf,
 		"",
@@ -74,7 +77,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"key_not_in_db",
 		nil,
 		nil,
-		&sliceKeyIterator{0, []libchunk.K{libchunk.K([32]byte{})}},
+		bitsiterator.NewPopulatedMemIterator([]libchunk.K{libchunk.K([32]byte{})}),
 		nil,
 		conf,
 		"no such key",
@@ -82,7 +85,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"storage_failure",
 		nil,
 		nil,
-		&sliceKeyIterator{0, []libchunk.K{libchunk.K([32]byte{})}},
+		bitsiterator.NewPopulatedMemIterator([]libchunk.K{libchunk.K([32]byte{})}),
 		nil,
 		withStore(t, defaultConf(t, secret), &failingStore{}),
 		"storage_failed",
@@ -98,7 +101,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"9MiB_random_defaultconf",
 		randb(9 * 1024 * 1024),
 		nil,
-		&sliceKeyIterator{0, []libchunk.K{}},
+		bitsiterator.NewMemIterator(),
 		nil,
 		conf,
 		"",
@@ -106,7 +109,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"9MiB_fail_to_write_output",
 		randb(9 * 1024 * 1024),
 		&failingWriter{bytes.NewBuffer(nil)},
-		&sliceKeyIterator{0, []libchunk.K{}},
+		bitsiterator.NewMemIterator(),
 		nil,
 		conf,
 		"writer_failure",
@@ -114,12 +117,12 @@ func TestJoinFromLocal(t *testing.T) {
 		"chunk_corrupted",
 		randb(9 * 1024 * 1024),
 		nil,
-		&sliceKeyIterator{0, []libchunk.K{}},
+		bitsiterator.NewMemIterator(),
 		func(k libchunk.K, conf libchunk.Config) {
 			switch store := conf.Store.(type) {
-			case *libchunk.BoltStore:
+			case *bitsstore.BoltStore:
 				err := store.DB.Update(func(tx *bolt.Tx) error {
-					return tx.Bucket(libchunk.BoltChunkBucket).Put(k[:], []byte{0x00})
+					return tx.Bucket(bitsstore.BoltChunkBucket).Put(k[:], []byte{0x00})
 				})
 
 				if err != nil {

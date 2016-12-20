@@ -1,10 +1,11 @@
-package libchunk
+package bitsstore
 
 import (
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/advanderveer/libchunk"
 	"github.com/boltdb/bolt"
 )
 
@@ -28,7 +29,7 @@ func NewBoltStore(p string) (s *BoltStore, err error) {
 	}
 
 	err = s.DB.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(BoltChunkBucket)
+		_, err = tx.CreateBucketIfNotExists(BoltChunkBucket)
 		return err
 	})
 
@@ -40,7 +41,7 @@ func NewBoltStore(p string) (s *BoltStore, err error) {
 }
 
 //Put a new chunk 'chunk' with key 'k' into the store
-func (s *BoltStore) Put(k K, chunk []byte) (err error) {
+func (s *BoltStore) Put(k libchunk.K, chunk []byte) (err error) {
 	return s.DB.Batch(func(tx *bolt.Tx) error {
 		b := tx.Bucket(BoltChunkBucket)
 		if b == nil {
@@ -58,7 +59,7 @@ func (s *BoltStore) Put(k K, chunk []byte) (err error) {
 
 //Get an existhing with 'k' from the store, returns an os.ErrNotExist if
 //no chunk with the given key exists in this store.
-func (s *BoltStore) Get(k K) (chunk []byte, err error) {
+func (s *BoltStore) Get(k libchunk.K) (chunk []byte, err error) {
 	err = s.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(BoltChunkBucket)
 		if b == nil {

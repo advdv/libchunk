@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
 )
 
 func TestPush(t *testing.T) {
@@ -23,14 +24,14 @@ func TestPush(t *testing.T) {
 		{
 			"9MiB_random_defaultconf",
 			randb(9 * 1024 * 1024),
-			&sliceKeyIterator{0, []libchunk.K{}},
+			bitsiterator.NewMemIterator(),
 			conf,
 			"",
 		}, {
 			"9MiB_random_defaultconf_index",
 			randb(9 * 1024 * 1024),
-			&sliceKeyIterator{0, []libchunk.K{}},
-			withIndex(t, conf, &sliceKeyIterator{}),
+			bitsiterator.NewMemIterator(),
+			withIndex(t, conf, bitsiterator.NewMemIterator()),
 			"",
 		}}
 

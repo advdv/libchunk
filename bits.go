@@ -35,8 +35,8 @@ type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
 }
 
-//Index holds only information about chunk keys
-type Index interface {
+//KeyIndex holds information about just the chunk keys
+type KeyIndex interface {
 	KeyHandler
 	Has(k K) bool
 }
@@ -115,7 +115,8 @@ type Config struct {
 	PushConcurrency  int
 	JoinConcurrency  int
 	KeyHash          KeyHash
-	Store            Store
-	Remote           Remote
-	Index            Index
+
+	Store  Store
+	Remote Remote
+	Index  KeyIndex
 }

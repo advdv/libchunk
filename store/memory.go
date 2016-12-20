@@ -1,4 +1,4 @@
-package libchunk
+package bitsstore
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/advanderveer/libchunk"
 )
 
 //MemStore stores Chunks in a map that only exists for the
@@ -17,19 +19,19 @@ import (
 //for the S3 remote.
 type MemStore struct {
 	*sync.Mutex
-	Chunks map[K][]byte
+	Chunks map[libchunk.K][]byte
 }
 
 //NewMemStore sets up an empty memory store
 func NewMemStore() *MemStore {
 	return &MemStore{
 		Mutex:  &sync.Mutex{},
-		Chunks: map[K][]byte{},
+		Chunks: map[libchunk.K][]byte{},
 	}
 }
 
 //Put a chunk into the Chunks map under the given 'k'
-func (s *MemStore) Put(k K, chunk []byte) (err error) {
+func (s *MemStore) Put(k libchunk.K, chunk []byte) (err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.Chunks[k] = chunk
@@ -37,7 +39,7 @@ func (s *MemStore) Put(k K, chunk []byte) (err error) {
 }
 
 //Get a chunk from the in-memory map
-func (s *MemStore) Get(k K) (chunk []byte, err error) {
+func (s *MemStore) Get(k libchunk.K) (chunk []byte, err error) {
 	s.Lock()
 	defer s.Unlock()
 	var ok bool
@@ -51,7 +53,7 @@ func (s *MemStore) Get(k K) (chunk []byte, err error) {
 
 func (s *MemStore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "PUT" {
-		k, err := DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
+		k, err := libchunk.DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -89,7 +91,7 @@ func (s *MemStore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `
 </ListBucketResult>`)
 	} else {
-		k, err := DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
+		k, err := libchunk.DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return

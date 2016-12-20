@@ -16,6 +16,10 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/remote"
+	"github.com/advanderveer/libchunk/store"
+
 	"github.com/restic/chunker"
 	"github.com/smartystreets/go-aws-auth"
 )
@@ -53,7 +57,7 @@ func (w *failingWriter) Write(p []byte) (n int, err error) {
 }
 
 type failingKeyIterator struct {
-	*sliceKeyIterator
+	*bitsiterator.MemIterator
 }
 
 func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
@@ -116,7 +120,7 @@ func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
 	}
 
 	dbpath := filepath.Join(dbdir, "db.bolt")
-	store, err := libchunk.NewBoltStore(dbpath)
+	store, err := bitsstore.NewBoltStore(dbpath)
 	if err != nil {
 		t.Fatalf("failed to setup bolt store: %v", err)
 	}
@@ -124,7 +128,7 @@ func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
 	return withStore(t, conf, store)
 }
 
-func withIndex(t quiter, conf libchunk.Config, index libchunk.Index) libchunk.Config {
+func withIndex(t quiter, conf libchunk.Config, index libchunk.KeyIndex) libchunk.Config {
 	conf.Index = index
 	return conf
 }
@@ -141,7 +145,7 @@ func withS3Remote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) 
 	}
 
 	go func() {
-		store := libchunk.NewMemStore()
+		store := bitsstore.NewMemStore()
 		if chunks != nil {
 			store.Chunks = chunks
 		}
@@ -149,7 +153,7 @@ func withS3Remote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) 
 		t.Fatalf("failed to serve: %v", http.Serve(l, store))
 	}()
 
-	return withRemote(t, conf, libchunk.NewS3Remote("http", l.Addr().String(), "", awsauth.Credentials{}))
+	return withRemote(t, conf, bitsremote.NewS3Remote("http", l.Addr().String(), "", awsauth.Credentials{}))
 }
 
 type randomBytesInput struct {
@@ -182,40 +186,6 @@ func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
 
 func (input *failingInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
 	return input, fmt.Errorf("input_failed")
-}
-
-type sliceKeyIterator struct {
-	i    int
-	Keys []libchunk.K
-}
-
-func (iter *sliceKeyIterator) Has(k libchunk.K) bool {
-	for _, kk := range iter.Keys {
-		if kk == k {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (iter *sliceKeyIterator) Reset() {
-	iter.i = 0
-}
-
-func (iter *sliceKeyIterator) Handle(k libchunk.K) (err error) {
-	iter.Keys = append(iter.Keys, k)
-	return nil
-}
-
-func (iter *sliceKeyIterator) Next() (k libchunk.K, err error) {
-	if iter.i > len(iter.Keys)-1 {
-		return k, io.EOF
-	}
-
-	k = iter.Keys[iter.i]
-	iter.i++
-	return k, nil
 }
 
 type failingKeyHandler struct{}

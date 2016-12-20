@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/store"
 )
 
 func BenchmarkConfigurations(b *testing.B) {
@@ -56,8 +58,8 @@ func BenchmarkConfigurations(b *testing.B) {
 }
 
 func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) {
-	keys := &sliceKeyIterator{}
-	store := libchunk.NewMemStore()
+	keys := &bitsiterator.MemIterator{}
+	store := bitsstore.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
 	err := libchunk.Split(input, keys, withStore(b, defaultConf(b, secret), store))
 	if err != nil {
@@ -89,7 +91,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		input := &randomBytesInput{bytes.NewBuffer(data)}
-		h := &sliceKeyIterator{}
+		h := &bitsiterator.MemIterator{}
 		err := libchunk.Split(input, h, conf)
 
 		keys = h.Keys
@@ -115,7 +117,9 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []libchunk.K, data []
 		}
 
 		defer os.Remove(outf.Name())
-		err = libchunk.Join(&sliceKeyIterator{0, keys}, outf, conf)
+		iter := bitsiterator.NewMemIterator()
+		iter.Keys = keys
+		err = libchunk.Join(iter, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
@@ -127,7 +131,7 @@ func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []libchunk.K, da
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		iter := &sliceKeyIterator{Keys: keys}
+		iter := &bitsiterator.MemIterator{Keys: keys}
 		err := libchunk.Push(iter, conf)
 		if err != nil {
 			b.Fatal(err)
