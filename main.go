@@ -4,19 +4,23 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/advanderveer/libchunk/command"
+
 	"github.com/mitchellh/cli"
 )
 
 var (
 	name    = "bits"
-	version = "from-src"
+	version = "build.from.src"
 )
 
 func main() {
 	c := cli.NewCLI(name, version)
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
-	//@TODO add some commmands
+		"split": command.SplitFactory(),
+		"join":  command.PushFactory(),
+		"push":  command.JoinFactory(),
 	}
 
 	status, err := c.Run()
