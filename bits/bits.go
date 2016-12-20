@@ -29,7 +29,7 @@ type KeyIterator interface {
 	Next() (K, error)
 }
 
-//InputChunker allows users to read a chunks of data at a time
+//InputChunker allows reading one piece of input at a time
 type InputChunker interface {
 	Next() ([]byte, error)
 }
@@ -60,11 +60,11 @@ type Store interface {
 }
 
 //Secret is the 32 byte key that scopes the deduplication
-//and facilitates end-to-end encryption
+//and facilitates end-to-end encryption. The first 8 bytes
+//are always a polynomial that can be used for CBC
 type Secret [32]byte
 
-//Pol returns the first 8 bytes of the secret as a polynomial that
-//can be used for CBC
+//Pol returns the first 8 bytes of the secret as a polynomial
 func (s Secret) Pol() (p chunker.Pol) {
 	i, _ := binary.Uvarint(s[:8])
 	return chunker.Pol(i)

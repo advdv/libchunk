@@ -1,8 +1,16 @@
-hash: c632de44663be8231c108517876068ec21b5ec4eaefa488b4cb04500c1c8cd6b
-updated: 2016-12-19T22:50:38.536295543+01:00
+hash: bc78b48d5062cf4208583213852d2d7184298ae53628734738fa03d06eae088e
+updated: 2016-12-20T21:12:38.536525951+01:00
 imports:
+- name: github.com/armon/go-radix
+  version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
+- name: github.com/bgentry/speakeasy
+  version: 675b82c74c0ed12283ee81ba8a534c8982c07b85
 - name: github.com/boltdb/bolt
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
+- name: github.com/mattn/go-isatty
+  version: 30a891c33c7cde7b02a981314b4228ec99380cca
+- name: github.com/mitchellh/cli
+  version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
 - name: github.com/restic/chunker
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
 - name: github.com/smartystreets/go-aws-auth

@@ -6,5 +6,7 @@ import:
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
 - package: github.com/boltdb/bolt                   #mmap embedded kv store
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
-- package: github.com/smartystreets/go-aws-auth    #sign aws http requests
+- package: github.com/smartystreets/go-aws-auth     #sign aws http requests
   version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
+- package: github.com/mitchellh/cli                 #command line library
+  version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
