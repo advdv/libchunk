@@ -53,23 +53,6 @@ func (r *S3Remote) rawBucketURL() string {
 
 //Index will use the remoet list interface to fetch all keys in the bucket
 func (r *S3Remote) Index(h KeyHandler) (err error) {
-
-	// <?xml version="1.0" encoding="UTF-8"?>
-	// <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-	// 	<Name>nlz-ad3c28975b40bb38-test-bucket</Name>
-	// 	<Prefix></Prefix>
-	// 	<KeyCount>578</KeyCount>
-	// 	<MaxKeys>1000</MaxKeys>
-	// 	<IsTruncated>false</IsTruncated>
-	// 	<Contents>
-	// 		<Key>.md5/0095a2145dbf524ddf22bf0d0bc6a149066d579e96812da393e87fc3696516fc.md5</Key>
-	// 		<LastModified>2016-11-19T09:17:17.000Z</LastModified>
-	// 		<ETag>&quot;6f1aef3bef9e4a572e18249ed4014a7d&quot;</ETag>
-	// 		<Size>32</Size>
-	// 		<StorageClass>STANDARD</StorageClass>
-	// 	</Contents>
-	//  <Contents>
-	//    ...
 	v := struct {
 		XMLName               xml.Name `xml:"ListBucketResult"`
 		Name                  string   `xml:"Name"`

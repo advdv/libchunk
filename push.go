@@ -38,6 +38,15 @@ func Push(iter KeyIterator, conf Config) error {
 		it.resCh <- &result{}
 	}
 
+	//if an index is configured, update it such
+	//that we can skip some pushes altogether
+	if conf.Index != nil {
+		err := conf.Remote.Index(conf.Index)
+		if err != nil {
+			return fmt.Errorf("failed to index remote: %v", err)
+		}
+	}
+
 	//fan-out
 	itemCh := make(chan *item, conf.PushConcurrency)
 	go func() {
@@ -53,6 +62,12 @@ func Push(iter KeyIterator, conf Config) error {
 				}
 
 				break
+			}
+
+			//we may be able to skip work altogether if an index
+			//is present and it contains the key we intent to work on
+			if conf.Index != nil && conf.Index.Has(k) {
+				continue
 			}
 
 			it := &item{

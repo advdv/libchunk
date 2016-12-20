@@ -19,13 +19,20 @@ func TestPush(t *testing.T) {
 		}
 		conf        libchunk.Config
 		expectedErr string
-	}{{
-		"9MiB_random_defaultconf",
-		randb(9 * 1024 * 1024),
-		&sliceKeyIterator{0, []libchunk.K{}},
-		conf,
-		"",
-	}}
+	}{
+		{
+			"9MiB_random_defaultconf",
+			randb(9 * 1024 * 1024),
+			&sliceKeyIterator{0, []libchunk.K{}},
+			conf,
+			"",
+		}, {
+			"9MiB_random_defaultconf_index",
+			randb(9 * 1024 * 1024),
+			&sliceKeyIterator{0, []libchunk.K{}},
+			withIndex(t, conf, &sliceKeyIterator{}),
+			"",
+		}}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -48,6 +55,16 @@ func TestPush(t *testing.T) {
 				return
 			} else if c.expectedErr != "" {
 				t.Errorf("expected an error, got success")
+			}
+
+			if c.conf.Index != nil {
+				iter.Reset()
+				err = libchunk.Push(iter, c.conf)
+				if err != nil {
+					t.Errorf("second (index test) push failed: %v", err)
+				}
+
+				//@TODO measure&test how much was actually put?
 			}
 		})
 	}

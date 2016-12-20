@@ -124,6 +124,11 @@ func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
 	return withStore(t, conf, store)
 }
 
+func withIndex(t quiter, conf libchunk.Config, index libchunk.Index) libchunk.Config {
+	conf.Index = index
+	return conf
+}
+
 func withRemote(t quiter, conf libchunk.Config, remote libchunk.Remote) libchunk.Config {
 	conf.Remote = remote
 	return conf
@@ -137,7 +142,9 @@ func withS3Remote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) 
 
 	go func() {
 		store := libchunk.NewMemStore()
-		store.Chunks = chunks
+		if chunks != nil {
+			store.Chunks = chunks
+		}
 
 		t.Fatalf("failed to serve: %v", http.Serve(l, store))
 	}()
@@ -180,6 +187,16 @@ func (input *failingInput) Chunker(conf libchunk.Config) (libchunk.Chunker, erro
 type sliceKeyIterator struct {
 	i    int
 	Keys []libchunk.K
+}
+
+func (iter *sliceKeyIterator) Has(k libchunk.K) bool {
+	for _, kk := range iter.Keys {
+		if kk == k {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (iter *sliceKeyIterator) Reset() {

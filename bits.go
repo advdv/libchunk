@@ -35,6 +35,12 @@ type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
 }
 
+//Index holds only information about chunk keys
+type Index interface {
+	KeyHandler
+	Has(k K) bool
+}
+
 //Remote stores chunks remotely but should provide an indexing mechanism
 //that allow clients to skip PUT calls altogether
 type Remote interface {
@@ -111,4 +117,5 @@ type Config struct {
 	KeyHash          KeyHash
 	Store            Store
 	Remote           Remote
+	Index            Index
 }

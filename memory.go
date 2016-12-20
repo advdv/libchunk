@@ -2,6 +2,7 @@ package libchunk
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -49,22 +50,59 @@ func (s *MemStore) Get(k K) (chunk []byte, err error) {
 }
 
 func (s *MemStore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.Lock()
-	defer s.Unlock()
-
 	if r.Method == "PUT" {
-		io.Copy(ioutil.Discard, r.Body)
-	} else {
 		k, err := DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
 		if err != nil {
-			log.Println("failed to decode", err, r.URL.String())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		chunk, ok := s.Chunks[k]
-		if !ok {
-			w.WriteHeader(404)
+		chunk, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		err = s.Put(k, chunk)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+	} else if r.URL.Query().Get("list-type") != "" {
+
+		fmt.Fprintf(w, `
+<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">`)
+
+		s.Lock()
+		defer s.Unlock()
+		for k, chunk := range s.Chunks {
+			fmt.Fprintf(w, `
+	<Contents>
+		<Key>%s</Key>
+		<Size>%d</Size>
+	</Contents>
+			`, k, len(chunk))
+		}
+
+		fmt.Fprintf(w, `
+</ListBucketResult>`)
+	} else {
+		k, err := DecodeKey(bytes.TrimLeft([]byte(r.URL.String()), "/"))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		chunk, err := s.Get(k)
+		if err != nil {
+			if os.IsNotExist(err) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
