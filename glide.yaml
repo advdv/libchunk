@@ -10,3 +10,5 @@ import:
   version: 2043e6d0bb7e4c18464a7bba562acbe482e3cabd
 - package: github.com/mitchellh/cli                 #command line library
   version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
+- package: github.com/jessevdk/go-flags             #flexible flag parsing
+  version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e

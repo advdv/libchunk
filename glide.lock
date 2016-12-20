@@ -1,5 +1,5 @@
-hash: bc78b48d5062cf4208583213852d2d7184298ae53628734738fa03d06eae088e
-updated: 2016-12-20T21:12:38.536525951+01:00
+hash: 035f2f99bcf3d1bf987c50beaf5039063a617a7a00764f2a5f3c88ddb4281ad0
+updated: 2016-12-20T22:31:07.751380847+01:00
 imports:
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
@@ -7,6 +7,8 @@ imports:
   version: 675b82c74c0ed12283ee81ba8a534c8982c07b85
 - name: github.com/boltdb/bolt
   version: 0d9f544bb94aac29c185968483459ef74d6deb5d
+- name: github.com/jessevdk/go-flags
+  version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e
 - name: github.com/mattn/go-isatty
   version: 30a891c33c7cde7b02a981314b4228ec99380cca
 - name: github.com/mitchellh/cli

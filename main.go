@@ -19,8 +19,8 @@ func main() {
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
 		"split": command.SplitFactory(),
-		"join":  command.PushFactory(),
-		"push":  command.JoinFactory(),
+		"join":  command.JoinFactory(),
+		"push":  command.PushFactory(),
 	}
 
 	status, err := c.Run()
