@@ -49,4 +49,14 @@ func TestActualS3PutGet(t *testing.T) {
 	if !bytes.Equal(output, input) {
 		t.Fatal("expected input and output to be the same")
 	}
+
+	iter := &sliceKeyIterator{}
+	err = remote.Index(iter)
+	if err != nil {
+		t.Fatalf("key indexing of remote shouldnt fail: %v", err)
+	}
+
+	if len(iter.Keys) < 1 {
+		t.Fatal("should return al least one key from indexing")
+	}
 }

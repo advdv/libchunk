@@ -35,13 +35,16 @@ type Chunker interface {
 	Next(data []byte) (chunker.Chunk, error)
 }
 
-//Remote holds chunks remotely
+//Remote stores chunks remotely but should provide an indexing mechanism
+//that allow clients to skip PUT calls altogether
 type Remote interface {
-	//@TODO find out how it will differ from the store interface
-	Store
+	Index(KeyHandler) error
+
+	Store //but it is still a store
 }
 
-//Store holds chunks locally
+//Store holds chunks locally and throught is expected to be fast enough
+//to not require a mechanism for skipping put calls
 type Store interface {
 
 	//will do nothing if exists, must be atomic

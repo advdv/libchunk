@@ -2,10 +2,12 @@ package libchunk
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/smartystreets/go-aws-auth"
 )
@@ -43,6 +45,104 @@ func (r *S3Remote) rawKeyURL(k K) string {
 	}
 
 	return fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
+}
+
+func (r *S3Remote) rawBucketURL() string {
+	return fmt.Sprintf("%s://%s", r.scheme, r.host)
+}
+
+//Index will use the remoet list interface to fetch all keys in the bucket
+func (r *S3Remote) Index(h KeyHandler) (err error) {
+
+	// <?xml version="1.0" encoding="UTF-8"?>
+	// <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+	// 	<Name>nlz-ad3c28975b40bb38-test-bucket</Name>
+	// 	<Prefix></Prefix>
+	// 	<KeyCount>578</KeyCount>
+	// 	<MaxKeys>1000</MaxKeys>
+	// 	<IsTruncated>false</IsTruncated>
+	// 	<Contents>
+	// 		<Key>.md5/0095a2145dbf524ddf22bf0d0bc6a149066d579e96812da393e87fc3696516fc.md5</Key>
+	// 		<LastModified>2016-11-19T09:17:17.000Z</LastModified>
+	// 		<ETag>&quot;6f1aef3bef9e4a572e18249ed4014a7d&quot;</ETag>
+	// 		<Size>32</Size>
+	// 		<StorageClass>STANDARD</StorageClass>
+	// 	</Contents>
+	//  <Contents>
+	//    ...
+	v := struct {
+		XMLName               xml.Name `xml:"ListBucketResult"`
+		Name                  string   `xml:"Name"`
+		IsTruncated           bool     `xml:"IsTruncated"`
+		NextContinuationToken string   `xml:"NextContinuationToken"`
+		Contents              []struct {
+			Key string `xml:"Key"`
+		} `xml:"Contents"`
+	}{}
+
+	next := ""
+	for {
+		q := url.Values{}
+		q.Set("list-type", "2")
+		q.Set("max-keys", "500")
+		if r.prefix != "" {
+			q.Set("prefix", r.prefix)
+		}
+
+		if next != "" {
+			q.Set("continuation-token", next)
+		}
+
+		raw := r.rawBucketURL()
+		loc, err := url.Parse(fmt.Sprintf("%s/?%s", raw, q.Encode()))
+		if err != nil {
+			return fmt.Errorf("failed to parse '%s' as url: %v", raw, err)
+		}
+
+		req, err := http.NewRequest("GET", loc.String(), nil)
+		if err != nil {
+			return fmt.Errorf("failed to create listing request: %v", err)
+		}
+
+		if r.creds.AccessKeyID != "" {
+			awsauth.Sign(req, r.creds)
+		}
+
+		resp, err := r.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to request bucket list: %v", err)
+		}
+
+		defer resp.Body.Close()
+		dec := xml.NewDecoder(resp.Body)
+		err = dec.Decode(&v)
+		if err != nil {
+			return fmt.Errorf("failed to decode s3 xml: %v")
+		}
+
+		for _, obj := range v.Contents {
+			str := strings.TrimPrefix(obj.Key, r.prefix)
+			str = strings.TrimLeft(str, "/")
+			k, err := DecodeKey([]byte(str))
+			if err != nil {
+				continue
+			}
+
+			err = h.Handle(k)
+			if err != nil {
+				return fmt.Errorf("index key handler failed: %v", err)
+			}
+		}
+
+		v.Contents = nil
+		if !v.IsTruncated {
+			break
+		}
+
+		next = v.NextContinuationToken
+	}
+
+	return nil
 }
 
 //Put uploads a chunk to an S3 object store under the provided key 'k'
