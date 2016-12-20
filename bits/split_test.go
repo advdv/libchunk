@@ -1,12 +1,12 @@
-package libchunk_test
+package bits_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
 )
 
 //TestSplit tests splitting of data streams
@@ -14,11 +14,11 @@ func TestSplit(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {
 		name        string
-		input       libchunk.Input
-		conf        libchunk.Config
+		input       bits.Input
+		conf        bits.Config
 		minKeys     int
 		expectedErr string
-		keyPutter   libchunk.KeyHandler
+		keyPutter   bits.KeyHandler
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
 		&randomBytesInput{bytes.NewBuffer(randb(9 * 1024 * 1024))},
@@ -59,18 +59,18 @@ func TestSplit(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 
-			var keys []libchunk.K
+			var keys []bits.K
 			var err error
 			if c.keyPutter == nil {
 				h := bitsiterator.NewMemIterator()
-				err = libchunk.Split(c.input, h, c.conf)
+				err = bits.Split(c.input, h, c.conf)
 				keys = h.Keys
 
 				if len(keys) < c.minKeys {
 					t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
 				}
 			} else {
-				err = libchunk.Split(c.input, c.keyPutter, c.conf)
+				err = bits.Split(c.input, c.keyPutter, c.conf)
 			}
 
 			if err != nil {

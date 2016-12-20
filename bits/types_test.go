@@ -1,4 +1,4 @@
-package libchunk_test
+package bits_test
 
 import (
 	"bytes"
@@ -15,10 +15,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
-	"github.com/advanderveer/libchunk/remote"
-	"github.com/advanderveer/libchunk/store"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/remote"
+	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/restic/chunker"
 	"github.com/smartystreets/go-aws-auth"
@@ -28,7 +28,7 @@ type quiter interface {
 	Fatalf(format string, args ...interface{})
 }
 
-var secret = libchunk.Secret{
+var secret = bits.Secret{
 	0x3D, 0xA3, 0x35, 0x8B, 0x4D, 0xC1, 0x73, 0x00, //polynomial
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //random bytes
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -60,31 +60,31 @@ type failingKeyIterator struct {
 	*bitsiterator.MemIterator
 }
 
-func (iter *failingKeyIterator) Next() (k libchunk.K, err error) {
+func (iter *failingKeyIterator) Next() (k bits.K, err error) {
 	return k, fmt.Errorf("iterator_failure")
 }
 
 type failingStore struct{}
 
-func (store *failingStore) Put(k libchunk.K, c []byte) error {
+func (store *failingStore) Put(k bits.K, c []byte) error {
 	return fmt.Errorf("storage_failed")
 }
 
-func (store *failingStore) Get(k libchunk.K) (c []byte, err error) {
+func (store *failingStore) Get(k bits.K) (c []byte, err error) {
 	return c, fmt.Errorf("storage_failed")
 }
 
 type emptyStore struct{}
 
-func (store *emptyStore) Put(k libchunk.K, c []byte) error {
+func (store *emptyStore) Put(k bits.K, c []byte) error {
 	return nil
 }
 
-func (store *emptyStore) Get(k libchunk.K) (c []byte, err error) {
+func (store *emptyStore) Get(k bits.K) (c []byte, err error) {
 	return c, os.ErrNotExist
 }
 
-func defaultConf(t quiter, secret libchunk.Secret) libchunk.Config {
+func defaultConf(t quiter, secret bits.Secret) bits.Config {
 	block, err := aes.NewCipher(secret[:])
 	if err != nil {
 		t.Fatalf("failed to create AES block cipher: %v", err)
@@ -95,26 +95,26 @@ func defaultConf(t quiter, secret libchunk.Secret) libchunk.Config {
 		t.Fatalf("failed to setup GCM cipher mode: %v", err)
 	}
 
-	return libchunk.Config{
+	return bits.Config{
 		Secret:           secret,
 		SplitBufSize:     chunker.MaxSize,
 		SplitConcurrency: 64,
 		PushConcurrency:  64,
 		JoinConcurrency:  10,
 		AEAD:             aead,
-		KeyHash: func(b []byte) libchunk.K {
+		KeyHash: func(b []byte) bits.K {
 			return sha256.Sum256(b)
 		},
 	}
 }
 
-func withStore(t quiter, conf libchunk.Config, store libchunk.Store) libchunk.Config {
+func withStore(t quiter, conf bits.Config, store bits.Store) bits.Config {
 	conf.Store = store
 	return conf
 }
 
-func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
-	dbdir, err := ioutil.TempDir("", "libchunk_db_")
+func withTmpBoltStore(t quiter, conf bits.Config) bits.Config {
+	dbdir, err := ioutil.TempDir("", "bits_db_")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -128,17 +128,17 @@ func withTmpBoltStore(t quiter, conf libchunk.Config) libchunk.Config {
 	return withStore(t, conf, store)
 }
 
-func withIndex(t quiter, conf libchunk.Config, index libchunk.KeyIndex) libchunk.Config {
+func withIndex(t quiter, conf bits.Config, index bits.KeyIndex) bits.Config {
 	conf.Index = index
 	return conf
 }
 
-func withRemote(t quiter, conf libchunk.Config, remote libchunk.Remote) libchunk.Config {
+func withRemote(t quiter, conf bits.Config, remote bits.Remote) bits.Config {
 	conf.Remote = remote
 	return conf
 }
 
-func withS3Remote(t quiter, conf libchunk.Config, chunks map[libchunk.K][]byte) libchunk.Config {
+func withS3Remote(t quiter, conf bits.Config, chunks map[bits.K][]byte) bits.Config {
 	l, err := net.Listen("tcp", ":")
 	if err != nil {
 		t.Fatalf("failed to setup test server: %v", err)
@@ -160,7 +160,7 @@ type randomBytesInput struct {
 	io.Reader
 }
 
-func (input *randomBytesInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+func (input *randomBytesInput) Chunker(conf bits.Config) (bits.Chunker, error) {
 	return chunker.New(input, conf.Secret.Pol()), nil
 }
 
@@ -172,7 +172,7 @@ func (input *failingChunkerInput) Next([]byte) (c chunker.Chunk, err error) {
 	return c, fmt.Errorf("chunking_failed")
 }
 
-func (input *failingChunkerInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+func (input *failingChunkerInput) Chunker(conf bits.Config) (bits.Chunker, error) {
 	return input, nil
 }
 
@@ -184,12 +184,12 @@ func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
 	return c, nil
 }
 
-func (input *failingInput) Chunker(conf libchunk.Config) (libchunk.Chunker, error) {
+func (input *failingInput) Chunker(conf bits.Config) (bits.Chunker, error) {
 	return input, fmt.Errorf("input_failed")
 }
 
 type failingKeyHandler struct{}
 
-func (iter *failingKeyHandler) Handle(k libchunk.K) (err error) {
+func (iter *failingKeyHandler) Handle(k bits.K) (err error) {
 	return fmt.Errorf("handler_failed")
 }

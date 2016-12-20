@@ -1,4 +1,4 @@
-package libchunk_test
+package bits_test
 
 import (
 	"bytes"
@@ -10,9 +10,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
-	"github.com/advanderveer/libchunk/store"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/store"
 )
 
 func BenchmarkConfigurations(b *testing.B) {
@@ -22,7 +22,7 @@ func BenchmarkConfigurations(b *testing.B) {
 		})))
 	}()
 
-	//Default libchunk.Configuration is cryptograpically the most secure
+	//Default bits.Configuration is cryptograpically the most secure
 	b.Run("default-conf", func(b *testing.B) {
 		sizes := []int64{
 			1024,
@@ -36,7 +36,7 @@ func BenchmarkConfigurations(b *testing.B) {
 
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
-				keys := []libchunk.K{}
+				keys := []bits.K{}
 				b.Run("split", func(b *testing.B) {
 					keys = benchmarkBoltRandomWritesChunkHashEncrypt(b, data, conf)
 				})
@@ -57,11 +57,11 @@ func BenchmarkConfigurations(b *testing.B) {
 	})
 }
 
-func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) {
+func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf bits.Config) {
 	keys := &bitsiterator.MemIterator{}
 	store := bitsstore.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
-	err := libchunk.Split(input, keys, withStore(b, defaultConf(b, secret), store))
+	err := bits.Split(input, keys, withStore(b, defaultConf(b, secret), store))
 	if err != nil {
 		b.Fatalf("couldnt split for test prep: %v", err)
 	}
@@ -72,13 +72,13 @@ func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) 
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		outf, err := ioutil.TempFile("", "libchunk_")
+		outf, err := ioutil.TempFile("", "bits_")
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		defer os.Remove(outf.Name())
-		err = libchunk.Join(keys, outf, conf)
+		err = bits.Join(keys, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
@@ -86,13 +86,13 @@ func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf libchunk.Config) 
 	}
 }
 
-func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf libchunk.Config) (keys []libchunk.K) {
+func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf bits.Config) (keys []bits.K) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		input := &randomBytesInput{bytes.NewBuffer(data)}
 		h := &bitsiterator.MemIterator{}
-		err := libchunk.Split(input, h, conf)
+		err := bits.Split(input, h, conf)
 
 		keys = h.Keys
 		if err != nil {
@@ -107,11 +107,11 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf l
 	return keys
 }
 
-func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []libchunk.K, data []byte, conf libchunk.Config) {
+func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		outf, err := ioutil.TempFile("", "libchunk_")
+		outf, err := ioutil.TempFile("", "bits_")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []libchunk.K, data []
 		defer os.Remove(outf.Name())
 		iter := bitsiterator.NewMemIterator()
 		iter.Keys = keys
-		err = libchunk.Join(iter, outf, conf)
+		err = bits.Join(iter, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
@@ -127,12 +127,12 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []libchunk.K, data []
 	}
 }
 
-func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []libchunk.K, data []byte, conf libchunk.Config) {
+func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		iter := &bitsiterator.MemIterator{Keys: keys}
-		err := libchunk.Push(iter, conf)
+		err := bits.Push(iter, conf)
 		if err != nil {
 			b.Fatal(err)
 		}

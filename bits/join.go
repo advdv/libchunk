@@ -1,4 +1,4 @@
-package libchunk
+package bits
 
 import (
 	"fmt"

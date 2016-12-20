@@ -1,4 +1,4 @@
-package libchunk_test
+package bits_test
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
-	"github.com/advanderveer/libchunk/store"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/boltdb/bolt"
 )
@@ -19,7 +19,7 @@ func TestJoinFromRemote(t *testing.T) {
 	keys := bitsiterator.NewMemIterator()
 	store := bitsstore.NewMemStore()
 	input := &randomBytesInput{bytes.NewReader(data)}
-	err := libchunk.Split(input, keys, withStore(t, defaultConf(t, secret), store))
+	err := bits.Split(input, keys, withStore(t, defaultConf(t, secret), store))
 	if err != nil {
 		t.Fatalf("couldnt split for test prep: %v", err)
 	}
@@ -27,8 +27,8 @@ func TestJoinFromRemote(t *testing.T) {
 	conf := withS3Remote(t, defaultConf(t, secret), store.Chunks)
 	cases := []struct {
 		name string
-		conf libchunk.Config
-		iter libchunk.KeyIterator
+		conf bits.Config
+		iter bits.KeyIterator
 	}{{
 		"9MiB_from_remote",
 		conf,
@@ -38,7 +38,7 @@ func TestJoinFromRemote(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			err := libchunk.Join(c.iter, buf, c.conf)
+			err := bits.Join(c.iter, buf, c.conf)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,11 +59,11 @@ func TestJoinFromLocal(t *testing.T) {
 		input  []byte
 		output io.ReadWriter
 		iter   interface {
-			libchunk.KeyHandler
-			libchunk.KeyIterator
+			bits.KeyHandler
+			bits.KeyIterator
 		}
-		corrupt     func(libchunk.K, libchunk.Config)
-		conf        libchunk.Config
+		corrupt     func(bits.K, bits.Config)
+		conf        bits.Config
 		expectedErr string
 	}{{
 		"no_keys_provided",
@@ -77,7 +77,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"key_not_in_db",
 		nil,
 		nil,
-		bitsiterator.NewPopulatedMemIterator([]libchunk.K{libchunk.K([32]byte{})}),
+		bitsiterator.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
 		nil,
 		conf,
 		"no such key",
@@ -85,7 +85,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"storage_failure",
 		nil,
 		nil,
-		bitsiterator.NewPopulatedMemIterator([]libchunk.K{libchunk.K([32]byte{})}),
+		bitsiterator.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
 		nil,
 		withStore(t, defaultConf(t, secret), &failingStore{}),
 		"storage_failed",
@@ -118,7 +118,7 @@ func TestJoinFromLocal(t *testing.T) {
 		randb(9 * 1024 * 1024),
 		nil,
 		bitsiterator.NewMemIterator(),
-		func(k libchunk.K, conf libchunk.Config) {
+		func(k bits.K, conf bits.Config) {
 			switch store := conf.Store.(type) {
 			case *bitsstore.BoltStore:
 				err := store.DB.Update(func(tx *bolt.Tx) error {
@@ -140,7 +140,7 @@ func TestJoinFromLocal(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			iter := c.iter
 			if c.input != nil {
-				err := libchunk.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
+				err := bits.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
@@ -161,7 +161,7 @@ func TestJoinFromLocal(t *testing.T) {
 				output = bytes.NewBuffer(nil)
 			}
 
-			err := libchunk.Join(iter, output, c.conf)
+			err := bits.Join(iter, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("joining shouldnt fail but got: %v", err)

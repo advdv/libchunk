@@ -9,7 +9,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/advanderveer/libchunk"
+	"github.com/advanderveer/libchunk/bits"
+
 	"github.com/smartystreets/go-aws-auth"
 )
 
@@ -40,7 +41,7 @@ func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remo
 	}
 }
 
-func (r *S3Remote) rawKeyURL(k libchunk.K) string {
+func (r *S3Remote) rawKeyURL(k bits.K) string {
 	if r.prefix == "" {
 		return fmt.Sprintf("%s://%s/%s", r.scheme, r.host, k)
 	}
@@ -53,7 +54,7 @@ func (r *S3Remote) rawBucketURL() string {
 }
 
 //Index will use the remoet list interface to fetch all keys in the bucket
-func (r *S3Remote) Index(h libchunk.KeyHandler) (err error) {
+func (r *S3Remote) Index(h bits.KeyHandler) (err error) {
 	v := struct {
 		XMLName               xml.Name `xml:"ListBucketResult"`
 		Name                  string   `xml:"Name"`
@@ -107,7 +108,7 @@ func (r *S3Remote) Index(h libchunk.KeyHandler) (err error) {
 		for _, obj := range v.Contents {
 			str := strings.TrimPrefix(obj.Key, r.prefix)
 			str = strings.TrimLeft(str, "/")
-			k, err := libchunk.DecodeKey([]byte(str))
+			k, err := bits.DecodeKey([]byte(str))
 			if err != nil {
 				continue
 			}
@@ -130,7 +131,7 @@ func (r *S3Remote) Index(h libchunk.KeyHandler) (err error) {
 }
 
 //Put uploads a chunk to an S3 object store under the provided key 'k'
-func (r *S3Remote) Put(k libchunk.K, chunk []byte) error {
+func (r *S3Remote) Put(k bits.K, chunk []byte) error {
 	raw := r.rawKeyURL(k)
 	loc, err := url.Parse(raw)
 	if err != nil {
@@ -165,7 +166,7 @@ func (r *S3Remote) Put(k libchunk.K, chunk []byte) error {
 }
 
 //Get attempts to download chunk 'k' from an S3 object store
-func (r *S3Remote) Get(k libchunk.K) (chunk []byte, err error) {
+func (r *S3Remote) Get(k bits.K) (chunk []byte, err error) {
 	raw := r.rawKeyURL(k)
 	loc, err := url.Parse(raw)
 	if err != nil {

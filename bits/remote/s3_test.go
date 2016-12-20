@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
-	"github.com/advanderveer/libchunk/remote"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/remote"
+
 	"github.com/smartystreets/go-aws-auth"
 )
 
@@ -49,11 +50,11 @@ func TestActualS3PutGet(t *testing.T) {
 		t.Skip("skipped in short mode")
 	}
 
-	var remote libchunk.Remote
+	var remote bits.Remote
 	remote = envRemote(t)
 
 	input := randb(4 * 1024 * 1024)
-	k := libchunk.K(sha256.Sum256(input))
+	k := bits.K(sha256.Sum256(input))
 
 	err := remote.Put(k, input)
 	if err != nil {

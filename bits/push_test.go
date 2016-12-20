@@ -1,12 +1,12 @@
-package libchunk_test
+package bits_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/advanderveer/libchunk"
-	"github.com/advanderveer/libchunk/iterator"
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
 )
 
 func TestPush(t *testing.T) {
@@ -15,10 +15,10 @@ func TestPush(t *testing.T) {
 		name  string
 		input []byte
 		iter  interface {
-			libchunk.KeyHandler
-			libchunk.KeyIterator
+			bits.KeyHandler
+			bits.KeyIterator
 		}
-		conf        libchunk.Config
+		conf        bits.Config
 		expectedErr string
 	}{
 		{
@@ -39,13 +39,13 @@ func TestPush(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			iter := c.iter
 			if c.input != nil {
-				err := libchunk.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
+				err := bits.Split(&randomBytesInput{bytes.NewBuffer(c.input)}, iter, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 
-			err := libchunk.Push(iter, c.conf)
+			err := bits.Push(iter, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("pushing shouldnt fail but got: %v", err)
@@ -60,7 +60,7 @@ func TestPush(t *testing.T) {
 
 			if c.conf.Index != nil {
 				iter.Reset()
-				err = libchunk.Push(iter, c.conf)
+				err = bits.Push(iter, c.conf)
 				if err != nil {
 					t.Errorf("second (index test) push failed: %v", err)
 				}
