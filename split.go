@@ -90,11 +90,11 @@ func Split(input Input, h KeyHandler, conf Config) error {
 		res := <-it.resCh
 		if res.err != nil {
 			return fmt.Errorf("work failed on chunk '%s': %v", res.key, res.err)
-		} else {
-			err := h.Handle(res.key)
-			if err != nil {
-				return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, err)
-			}
+		}
+
+		err := h.Handle(res.key)
+		if err != nil {
+			return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, err)
 		}
 
 		lastpos = it.pos

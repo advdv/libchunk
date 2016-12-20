@@ -19,6 +19,9 @@ type S3Remote struct {
 	client *http.Client
 }
 
+//NewS3Remote sets up a HTTP client that allows chunks to be pushed to an S3
+//compatible object store. Its request will take on the following template
+//<scheme>://<host>/<prefix>/<key>
 func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remote {
 	if scheme == "" {
 		scheme = "https"
@@ -33,6 +36,7 @@ func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remo
 	}
 }
 
+//Put uploads a chunk to an S3 object store under the provided key 'k'
 func (r *S3Remote) Put(k K, chunk []byte) error {
 	raw := fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
 	loc, err := url.Parse(raw)
@@ -64,6 +68,7 @@ func (r *S3Remote) Put(k K, chunk []byte) error {
 	return nil
 }
 
+//Get attempts to download chunk 'k' from an S3 object store
 func (r *S3Remote) Get(k K) (chunk []byte, err error) {
 	raw := fmt.Sprintf("%s://%s/%s/%s", r.scheme, r.host, r.prefix, k)
 	loc, err := url.Parse(raw)

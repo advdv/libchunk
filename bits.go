@@ -55,7 +55,7 @@ type Store interface {
 //and facilitates end-to-end encryption
 type Secret [32]byte
 
-//return the first 8 bytes of the secret as a polynomial that
+//Pol returns the first 8 bytes of the secret as a polynomial that
 //can be used for CBC
 func (s Secret) Pol() (p chunker.Pol) {
 	i, _ := binary.Uvarint(s[:8])
@@ -97,7 +97,7 @@ type Input interface {
 	Chunker(conf Config) (Chunker, error)
 }
 
-//Configure Split, Join, Push and Fetch behaviour
+//Config describes how the library's Split, Join and Push behaves
 type Config struct {
 	AEAD             cipher.AEAD
 	Secret           Secret

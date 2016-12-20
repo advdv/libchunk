@@ -112,11 +112,11 @@ func Join(keys KeyIterator, w io.Writer, conf Config) error {
 		res := <-it.resCh
 		if res.err != nil {
 			return fmt.Errorf("failed to work chunk '%s': %v", it.key, res.err)
-		} else {
-			_, err := w.Write(res.chunk)
-			if err != nil {
-				return fmt.Errorf("failed to write chunk '%s' to output: %v", it.key, err)
-			}
+		}
+
+		_, err := w.Write(res.chunk)
+		if err != nil {
+			return fmt.Errorf("failed to write chunk '%s' to output: %v", it.key, err)
 		}
 
 		lastpos = it.pos

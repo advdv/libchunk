@@ -58,7 +58,7 @@ func TestSplit(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 
-			keys := []libchunk.K{}
+			var keys []libchunk.K
 			var err error
 			if c.keyPutter == nil {
 				h := &sliceKeyIterator{}

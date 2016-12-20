@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	//Name of the bucket that holds all chunks
+	//BoltChunkBucket is the name of the bucket that holds all chunks
 	BoltChunkBucket = []byte("chunks")
 )
 
@@ -18,7 +18,7 @@ type BoltStore struct {
 	DB *bolt.DB
 }
 
-//Create a new store by memory-mapping the file at path 'p', the
+//NewBoltStore creates a new store by memory-mapping the file at path 'p', the
 //database file is created if non exists at the destination
 func NewBoltStore(p string) (s *BoltStore, err error) {
 	s = &BoltStore{}
