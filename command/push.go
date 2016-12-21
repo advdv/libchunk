@@ -1,21 +1,38 @@
 package command
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 )
 
-//Push command
-type Push struct {
-	ui cli.Ui
+//PushOpts describes command options
+type PushOpts struct {
+	LocalStoreOpt
+	RemoteOpt
 }
 
-//PushFactory returns a factory method for the push command
+//Push command
+type Push struct {
+	ui     cli.Ui
+	opts   *PushOpts
+	parser *flags.Parser
+}
+
+//PushFactory returns a factory method for the split command
 func PushFactory() func() (cmd cli.Command, err error) {
+	cmd := &Push{
+		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
+		opts: &PushOpts{},
+	}
+
+	cmd.parser = flags.NewNamedParser("bits push", flags.Default)
+	cmd.parser.AddGroup("options", "options", cmd.opts)
 	return func() (cli.Command, error) {
-		return &Push{&cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr}}, nil
+		return cmd, nil
 	}
 }
 
@@ -23,22 +40,37 @@ func PushFactory() func() (cmd cli.Command, err error) {
 // usage, a brief few sentences explaining the function of the command,
 // and the complete list of flags the command accepts.
 func (cmd *Push) Help() string {
+	buf := bytes.NewBuffer(nil)
+	cmd.parser.WriteHelp(buf)
 	return fmt.Sprintf(`
-  %s
-`, cmd.Synopsis())
+  %s.
+  by default takes a list of keys over STDIN and outputs keys
+  that are pushed to STDOUT. Move will attempt to index keys
+  already present on the remote to prevent itself from sending
+  duplicate chunks. There is no remote locking mechanism so
+  the index can be out-of-date, in this case some unnessary
+  data transfer will occur but data remains intact.
+
+%s`, cmd.Synopsis(), buf.String())
 }
 
 // Synopsis returns a one-line, short synopsis of the command.
 // This should be less than 50 characters ideally.
 func (cmd *Push) Synopsis() string {
-	return ""
+	return "moves chunks from the local store to a remote location"
 }
 
 // Run runs the actual command with the given CLI instance and
 // command-line arguments. It returns the exit status when it is
 // finished.
 func (cmd *Push) Run(args []string) int {
-	if err := cmd.DoRun(args); err != nil {
+	a, err := cmd.parser.ParseArgs(args)
+	if err != nil {
+		cmd.ui.Error(err.Error())
+		return 127
+	}
+
+	if err := cmd.DoRun(a); err != nil {
 		cmd.ui.Error(err.Error())
 		return 1
 	}
@@ -48,5 +80,5 @@ func (cmd *Push) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Push) DoRun(args []string) error {
-	return fmt.Errorf("not implemented")
+	return fmt.Errorf("not implemented: %+v", cmd.opts)
 }

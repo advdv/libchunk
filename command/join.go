@@ -11,9 +11,9 @@ import (
 
 //JoinOpts describes command options
 type JoinOpts struct {
-	Secret     string `short:"s" long:"secret" description:"secret that will be used to decrypt content chunks, if not specified it will be asked for interactively"`
-	StorageDir string `short:"l" long:"storage-dir" description:"Directory in which chunks are stored locally, defaults to the user's home directory" value-name:"DIR"`
-	RemoteURL  string `short:"r" long:"remote" description:"URLs of the remotes from which chunks will be fetched if they cannot be found locally"`
+	SecretOpt
+	LocalStoreOpt
+	RemoteOpt
 }
 
 //Join command
@@ -44,7 +44,11 @@ func (cmd *Join) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
 	return fmt.Sprintf(`
-  %s
+  %s. By default
+  reads keys over STDIN and writes output data to STDOUT in the
+  order each key was provided. Join will first attempt to read
+  requested chunks from the local store, if they cannot be found
+  here it will try to fetch chunks from the configured remote.
 
 %s`, cmd.Synopsis(), buf.String())
 }
@@ -52,7 +56,7 @@ func (cmd *Join) Help() string {
 // Synopsis returns a one-line, short synopsis of the command.
 // This should be less than 50 characters ideally.
 func (cmd *Join) Synopsis() string {
-	return "join chunks "
+	return "takes a serie of keys and outputs associated chunks"
 }
 
 // Run runs the actual command with the given CLI instance and
