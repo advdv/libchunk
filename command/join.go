@@ -11,9 +11,9 @@ import (
 
 //JoinOpts describes command options
 type JoinOpts struct {
-	SecretOpt
-	LocalStoreOpt
-	RemoteOpt
+	SecretOpts
+	LocalStoreOpts
+	RemoteOpts
 }
 
 //Join command

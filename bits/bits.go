@@ -3,15 +3,14 @@ package bits
 import (
 	"crypto/cipher"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
-
-	"github.com/restic/chunker"
 )
 
-//KeySize describes the size of each chunk ley
-const KeySize = 32
+const (
+	//KeySize describes the byte size of each chunk key
+	KeySize = 32
+)
 
 var (
 	//ErrNoSuchKey is returned when a given key could not be found
@@ -57,17 +56,6 @@ type Store interface {
 
 	//returns os.NotExist if the chunk doesnt exist
 	Get(k K) (chunk []byte, err error)
-}
-
-//Secret is the 32 byte key that scopes the deduplication
-//and facilitates end-to-end encryption. The first 8 bytes
-//are always a polynomial that can be used for CBC
-type Secret [32]byte
-
-//Pol returns the first 8 bytes of the secret as a polynomial
-func (s Secret) Pol() (p chunker.Pol) {
-	i, _ := binary.Uvarint(s[:8])
-	return chunker.Pol(i)
 }
 
 //KeyHash turns a arbitrary sized chunk into content-based key

@@ -11,8 +11,8 @@ import (
 
 //PushOpts describes command options
 type PushOpts struct {
-	LocalStoreOpt
-	RemoteOpt
+	LocalStoreOpts
+	RemoteOpts
 }
 
 //Push command

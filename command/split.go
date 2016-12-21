@@ -11,8 +11,8 @@ import (
 
 //SplitOpts describes command options
 type SplitOpts struct {
-	SecretOpt
-	LocalStoreOpt
+	SecretOpts
+	LocalStoreOpts
 }
 
 //Split command
@@ -78,5 +78,12 @@ func (cmd *Split) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Split) DoRun(args []string) error {
+	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(secret)
+
 	return fmt.Errorf("not implemented: %+v", cmd.opts)
 }
