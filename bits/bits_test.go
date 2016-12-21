@@ -132,7 +132,8 @@ func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []bits.K, data [
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		iter := &bitsiterator.MemIterator{Keys: keys}
-		err := bits.Push(iter, conf)
+		h := &bitsiterator.MemIterator{}
+		err := bits.Push(iter, h, conf)
 		if err != nil {
 			b.Fatal(err)
 		}

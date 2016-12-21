@@ -47,7 +47,8 @@ func TestPush(t *testing.T) {
 				}
 			}
 
-			err := bits.Push(iter, c.conf)
+			firstH := &bitsiterator.MemIterator{}
+			err := bits.Push(iter, firstH, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("pushing shouldnt fail but got: %v", err)
@@ -60,11 +61,20 @@ func TestPush(t *testing.T) {
 				t.Errorf("expected an error, got success")
 			}
 
+			if len(firstH.Keys) < 1 {
+				t.Error("expected at least some keys to be pushed")
+			}
+
 			if c.conf.Index != nil {
+				secondH := &bitsiterator.MemIterator{}
 				iter.Reset()
-				err = bits.Push(iter, c.conf)
+				err = bits.Push(iter, secondH, c.conf)
 				if err != nil {
 					t.Errorf("second (index test) push failed: %v", err)
+				}
+
+				if len(secondH.Keys) >= len(firstH.Keys) {
+					t.Error("expected some keys to be skipped on second push")
 				}
 
 				//@TODO measure&test how much was actually put?

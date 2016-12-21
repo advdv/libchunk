@@ -7,7 +7,7 @@ import (
 
 //Push will attempt to move all keys provided by KeyIterator 'iter' to the remote
 //configured in Config 'conf'.
-func Push(iter KeyIterator, conf Config) error {
+func Push(iter KeyIterator, h KeyHandler, conf Config) error {
 
 	//result of working the item
 	type result struct {
@@ -90,6 +90,12 @@ func Push(iter KeyIterator, conf Config) error {
 		if res.err != nil {
 			return res.err
 		}
+
+		err := h.Handle(it.key)
+		if err != nil {
+			return fmt.Errorf("handler failed for key '%s': %v", it.key, err)
+		}
+
 	}
 
 	return nil
