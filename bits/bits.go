@@ -1,7 +1,9 @@
 package bits
 
 import (
+	"crypto/aes"
 	"crypto/cipher"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -26,6 +28,13 @@ type KeyHandler interface {
 type KeyIterator interface {
 	Reset()
 	Next() (K, error)
+}
+
+//KeyExchange describes a method for handling
+//key outputs and taking key input through iteration.
+type KeyExchange interface {
+	KeyIterator
+	KeyHandler
 }
 
 //InputChunker allows reading one piece of input at a time
@@ -100,4 +109,28 @@ type Config struct {
 	Store  Store
 	Remote Remote
 	Index  KeyIndex
+}
+
+//DefaultConf sets up sensible configs
+func DefaultConf(secret Secret) (conf Config, err error) {
+	block, err := aes.NewCipher(secret[:])
+	if err != nil {
+		return conf, fmt.Errorf("failed to create AES block cipher: %v", err)
+	}
+
+	aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
+	if err != nil {
+		return conf, fmt.Errorf("failed to setup GCM cipher mode: %v", err)
+	}
+
+	return Config{
+		Secret:           secret,
+		SplitConcurrency: 64,
+		PushConcurrency:  64,
+		JoinConcurrency:  10,
+		AEAD:             aead,
+		KeyHash: func(b []byte) K {
+			return sha256.Sum256(b)
+		},
+	}, nil
 }

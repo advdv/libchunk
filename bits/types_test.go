@@ -2,9 +2,6 @@ package bits_test
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -85,26 +82,12 @@ func (store *emptyStore) Get(k bits.K) (c []byte, err error) {
 }
 
 func defaultConf(t quiter, secret bits.Secret) bits.Config {
-	block, err := aes.NewCipher(secret[:])
+	conf, err := bits.DefaultConf(secret)
 	if err != nil {
-		t.Fatalf("failed to create AES block cipher: %v", err)
+		t.Fatalf("failed to get default conf: %v", err)
 	}
 
-	aead, err := cipher.NewGCMWithNonceSize(block, sha256.Size)
-	if err != nil {
-		t.Fatalf("failed to setup GCM cipher mode: %v", err)
-	}
-
-	return bits.Config{
-		Secret:           secret,
-		SplitConcurrency: 64,
-		PushConcurrency:  64,
-		JoinConcurrency:  10,
-		AEAD:             aead,
-		KeyHash: func(b []byte) bits.K {
-			return sha256.Sum256(b)
-		},
-	}
+	return conf
 }
 
 func withStore(t quiter, conf bits.Config, store bits.Store) bits.Config {

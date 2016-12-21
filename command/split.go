@@ -3,7 +3,12 @@ package command
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"os"
+
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/chunker"
+	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
@@ -13,6 +18,8 @@ import (
 type SplitOpts struct {
 	SecretOpts
 	LocalStoreOpts
+	ChunkerOpts
+	ExchangeOpts
 }
 
 //Split command
@@ -29,7 +36,7 @@ func SplitFactory() func() (cmd cli.Command, err error) {
 		opts: &SplitOpts{},
 	}
 
-	cmd.parser = flags.NewNamedParser("bits split", flags.Default)
+	cmd.parser = flags.NewNamedParser("bits split <FILE>", flags.Default)
 	cmd.parser.AddGroup("options", "options", cmd.opts)
 	return func() (cli.Command, error) {
 		return cmd, nil
@@ -42,14 +49,21 @@ func SplitFactory() func() (cmd cli.Command, err error) {
 func (cmd *Split) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
+	buf2 := bytes.NewBuffer(nil)
+	template.Must(template.New("help").Parse(buf.String())).Execute(buf2, struct {
+		SupportedStores   []string
+		SupportedChunkers []string
+	}{bitsstore.SupportedStores, bitschunker.SupportedChunkers})
+
 	return fmt.Sprintf(`
   %s. By default
   reads the input stream from STDIN and writes resulting content-based
-  chunk keys to STDOUT. Split will not store a chunk again if one with
-  the same key is already stored locally, effectively de-duplicating
-  data stored with the same secret.
+  chunk keys to STDOUT, if the first arguments it present the command
+  will open it as a file and use this as input instead of STDIN. Split
+  will not store a chunk again if one with the same key is already stored
+  locally, effectively de-duplicating data stored with the same secret.
 
-%s`, cmd.Synopsis(), buf.String())
+%s`, cmd.Synopsis(), buf2.String())
 }
 
 // Synopsis returns a one-line, short synopsis of the command.
@@ -78,12 +92,36 @@ func (cmd *Split) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Split) DoRun(args []string) error {
+	//@TODO make io configurable
+	//@TODO fix exchange/iterator abstractions
+
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(secret)
+	rc, chunker, err := cmd.opts.CreateChunker(args, secret)
+	if err != nil {
+		return err
+	}
 
-	return fmt.Errorf("not implemented: %+v", cmd.opts)
+	defer rc.Close()
+	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
+	if err != nil {
+		return err
+	}
+
+	//@TODO how do we determine the writer? alwasy stdout?
+	ex, err := cmd.opts.ExchangeOpts.CreateExchange(rc, os.Stdout)
+	if err != nil {
+		return err
+	}
+
+	conf, err := bits.DefaultConf(secret)
+	if err != nil {
+		return err
+	}
+
+	conf.Store = store
+	return bits.Split(chunker, ex, conf)
 }

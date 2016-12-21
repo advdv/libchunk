@@ -1,5 +1,5 @@
-hash: 035f2f99bcf3d1bf987c50beaf5039063a617a7a00764f2a5f3c88ddb4281ad0
-updated: 2016-12-20T22:31:07.751380847+01:00
+hash: cc22fa750adfa0a37cbd6609f15e9cbb4513ac0c3e9855bdb5eb18172dede17d
+updated: 2016-12-21T13:18:12.068799979+01:00
 imports:
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
@@ -13,6 +13,8 @@ imports:
   version: 30a891c33c7cde7b02a981314b4228ec99380cca
 - name: github.com/mitchellh/cli
   version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
+- name: github.com/mitchellh/go-homedir
+  version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/restic/chunker
   version: bb2ecf9a98e35a0b336ffc23fc515fb6e7961577
 - name: github.com/smartystreets/go-aws-auth

@@ -12,3 +12,5 @@ import:
   version: fa17b36f6c61f1ddbbb08c9f6fde94b3c065a09d
 - package: github.com/jessevdk/go-flags             #flexible flag parsing
   version: 4e64e4a4e2552194cf594243e23aa9baf3b4297e
+- package: github.com/mitchellh/go-homedir          #cgo-less home dirs
+  version: b8bc1bf767474819792c23f32d8286a45736f1c6
