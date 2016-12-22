@@ -10,6 +10,7 @@ import (
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/chunker"
 	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/mattn/go-isatty"
@@ -19,7 +20,7 @@ import (
 
 //ExchangeOpts holds options for key exchange: iterators and handlers
 type ExchangeOpts struct {
-	ExchangeType string `long:"iterator" default:"stdio" description:": {{.SupportedExchanges}}" value-name:"stdio"`
+	ExchangeType string `long:"iterator" default:"stdio" description:"method through which chunk keys are exchanged, supports: {{.SupportedExchanges}}" value-name:"stdio"`
 }
 
 //CreateExchange will setup an iterator using the configured type
@@ -138,12 +139,32 @@ func (opts *LocalStoreOpts) CreateStore(secret bits.Secret) (s bits.Store, err e
 
 //RemoteOpts configures the remote used by various commands
 type RemoteOpts struct {
-	Remote string `short:"r" long:"remote" description:"spec of the remote from which chunks will be fetched if they cannot be found locally"`
+	RemoteType        string `short:"r" long:"remote" default:"s3" description:"the type of remote that will be used for pushing, supports: {{.SupportedRemotes}}" value-name:"s3"`
+	S3Scheme          string `long:"s3-scheme" default:"https" value-name:"https" description:"what type of transport scheme should be used, supports 'http' and 'https'"`
+	S3Host            string `long:"s3-host" default:"tmp.microfactory.io" value-name:"tmp.microfactory.io" description:"hostname at which the s3 remote resides, defaults to 'tmp.microfactory.io'"`
+	S3Prefix          string `long:"s3-prefix" description:"bucket directory in which chunks will be pushed, defaults to the sha2 of the secret"`
+	S3AccessKeyID     string `long:"s3-access-key-id" description:"access key to use when using the s3 remote, when empty the s3 remote is assumed to be public"`
+	S3SecretAccessKey string `long:"s3-secret-access-key" description:"secret for authorizing with the s3 remote, when empty the s3 remote is assumed to be public"`
 }
 
 //CreateRemote uses the command line options provided by the user to setup
 //a remote configuration that can be used by the bits library. Errors should
 //focus on usability.
-func (opt *RemoteOpts) CreateRemote() (r bits.Remote, err error) {
+func (opts *RemoteOpts) CreateRemote(secret bits.Secret) (r bits.Remote, err error) {
+	if opts.S3Prefix == "" {
+		opts.S3Prefix = fmt.Sprintf("%x", sha256.Sum256(secret[:]))
+	}
+
+	r, err = bitsremote.CreateRemote(
+		opts.RemoteType,
+		opts.S3Scheme,
+		opts.S3Host,
+		opts.S3Prefix,
+		opts.S3AccessKeyID,
+		opts.S3SecretAccessKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create remote: %v", err)
+	}
+
 	return r, nil
 }

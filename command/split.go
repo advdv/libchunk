@@ -8,6 +8,7 @@ import (
 
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/chunker"
+	"github.com/advanderveer/libchunk/bits/iterator"
 	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/jessevdk/go-flags"
@@ -51,9 +52,10 @@ func (cmd *Split) Help() string {
 	cmd.parser.WriteHelp(buf)
 	buf2 := bytes.NewBuffer(nil)
 	template.Must(template.New("help").Parse(buf.String())).Execute(buf2, struct {
-		SupportedStores   []string
-		SupportedChunkers []string
-	}{bitsstore.SupportedStores, bitschunker.SupportedChunkers})
+		SupportedStores    []string
+		SupportedChunkers  []string
+		SupportedExchanges []string
+	}{bitsstore.SupportedStores, bitschunker.SupportedChunkers, bitsiterator.SupportedIterators})
 
 	return fmt.Sprintf(`
   %s. By default
@@ -92,14 +94,15 @@ func (cmd *Split) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Split) DoRun(args []string) error {
-	//@TODO make io configurable
-	//@TODO fix exchange/iterator abstractions
+	//@TODO make io configurable, reader(stdin/file) writer(stdin/file/atomicfile)
+	//@TODO fix exchange/protocol/iterator abstractions
 
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
 	if err != nil {
 		return err
 	}
 
+	//@TODO this should instead accept the configured IO option
 	rc, chunker, err := cmd.opts.CreateChunker(args, secret)
 	if err != nil {
 		return err
@@ -111,7 +114,6 @@ func (cmd *Split) DoRun(args []string) error {
 		return err
 	}
 
-	//@TODO how do we determine the writer? alwasy stdout?
 	ex, err := cmd.opts.ExchangeOpts.CreateExchange(rc, os.Stdout)
 	if err != nil {
 		return err

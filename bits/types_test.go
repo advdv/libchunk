@@ -17,8 +17,6 @@ import (
 	"github.com/advanderveer/libchunk/bits/iterator"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
-
-	"github.com/smartystreets/go-aws-auth"
 )
 
 type quiter interface {
@@ -135,7 +133,7 @@ func withS3Remote(t quiter, conf bits.Config, chunks map[bits.K][]byte) bits.Con
 		t.Fatalf("failed to serve: %v", http.Serve(l, store))
 	}()
 
-	return withRemote(t, conf, bitsremote.NewS3Remote("http", l.Addr().String(), "", awsauth.Credentials{}))
+	return withRemote(t, conf, bitsremote.NewS3Remote("http", l.Addr().String(), "", "", ""))
 }
 
 type randomBytesInput struct {

@@ -27,13 +27,16 @@ type S3Remote struct {
 //compatible object store. Its request will take on the following template
 //<scheme>://<host>/<prefix>/<key>. When the access_key_id is set in the
 //credentials, request will we signed prior to sending
-func NewS3Remote(scheme, host, prefix string, creds awsauth.Credentials) *S3Remote {
+func NewS3Remote(scheme, host, prefix, accessKey, secretKey string) *S3Remote {
 	if scheme == "" {
 		scheme = "https"
 	}
 
 	return &S3Remote{
-		creds:  creds,
+		creds: awsauth.Credentials{
+			AccessKeyID:     accessKey,
+			SecretAccessKey: secretKey,
+		},
 		client: &http.Client{},
 		scheme: scheme,
 		host:   host,

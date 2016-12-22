@@ -3,7 +3,13 @@ package command
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"os"
+
+	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/remote"
+	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
@@ -11,8 +17,10 @@ import (
 
 //PushOpts describes command options
 type PushOpts struct {
+	SecretOpts
 	LocalStoreOpts
 	RemoteOpts
+	ExchangeOpts
 }
 
 //Push command
@@ -42,6 +50,13 @@ func PushFactory() func() (cmd cli.Command, err error) {
 func (cmd *Push) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
+	buf2 := bytes.NewBuffer(nil)
+	template.Must(template.New("help").Parse(buf.String())).Execute(buf2, struct {
+		SupportedStores    []string
+		SupportedRemotes   []string
+		SupportedExchanges []string
+	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitsiterator.SupportedIterators})
+
 	return fmt.Sprintf(`
   %s.
   by default takes a list of keys over STDIN and outputs keys
@@ -51,7 +66,7 @@ func (cmd *Push) Help() string {
   the index can be out-of-date, in this case some unnessary
   data transfer will occur but data remains intact.
 
-%s`, cmd.Synopsis(), buf.String())
+%s`, cmd.Synopsis(), buf2.String())
 }
 
 // Synopsis returns a one-line, short synopsis of the command.
@@ -80,5 +95,32 @@ func (cmd *Push) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Push) DoRun(args []string) error {
-	return fmt.Errorf("not implemented: %+v", cmd.opts)
+	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
+	if err != nil {
+		return err
+	}
+
+	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
+	if err != nil {
+		return err
+	}
+
+	ex, err := cmd.opts.ExchangeOpts.CreateExchange(os.Stdin, os.Stdout)
+	if err != nil {
+		return err
+	}
+
+	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
+	if err != nil {
+		return err
+	}
+
+	conf, err := bits.DefaultConf(secret)
+	if err != nil {
+		return err
+	}
+
+	conf.Remote = remote
+	conf.Store = store
+	return bits.Push(ex, ex, conf)
 }

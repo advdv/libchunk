@@ -42,7 +42,7 @@ func envRemote(t *testing.T) *bitsremote.S3Remote {
 		return nil
 	}
 
-	return bitsremote.NewS3Remote("https", host, "tests", creds)
+	return bitsremote.NewS3Remote("https", host, "tests", creds.AccessKeyID, creds.SecretAccessKey)
 }
 
 func TestActualS3PutGet(t *testing.T) {
