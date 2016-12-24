@@ -21,7 +21,7 @@ func NewRabinChunker(r io.Reader, pol chunker.Pol) *RabinChunker {
 }
 
 //Next will return the next chunk for processing
-func (c *RabinChunker) Next() (chunk []byte, err error) {
+func (c *RabinChunker) Read() (chunk []byte, err error) {
 	rchunk, err := c.chunker.Next(c.buf)
 	if err != nil {
 		return chunk, err

@@ -137,12 +137,12 @@ func withS3Remote(t quiter, conf bits.Config, chunks map[bits.K][]byte) bits.Con
 }
 
 type randomBytesInput struct {
-	bits.InputChunker
+	bits.ChunkReader
 }
 
 func randBytesInput(r io.Reader, secret bits.Secret) *randomBytesInput {
 	return &randomBytesInput{
-		InputChunker: bitschunks.NewRabinChunker(r, secret.Pol()),
+		ChunkReader: bitschunks.NewRabinChunker(r, secret.Pol()),
 	}
 }
 
@@ -152,7 +152,7 @@ func randBytesInput(r io.Reader, secret bits.Secret) *randomBytesInput {
 
 type failingChunker struct{}
 
-func (input *failingChunker) Next() (c []byte, err error) {
+func (input *failingChunker) Read() (c []byte, err error) {
 	return c, fmt.Errorf("chunking_failed")
 }
 

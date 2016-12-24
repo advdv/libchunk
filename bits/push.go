@@ -5,8 +5,8 @@ import (
 	"io"
 )
 
-//Push will attempt to move all keys provided by KeyIterator 'iter' to the remote
-//configured in Config 'conf'.
+//Push will attempt to move all keys read from key reader 'kr' to the remote
+//configured in Config 'conf' and outputs pushed keys to key writer 'kw'.
 func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 
 	//result of working the item

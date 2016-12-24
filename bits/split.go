@@ -5,11 +5,11 @@ import (
 	"io"
 )
 
-//Split reads chunks from an input chunker and stores each encrypted under a
+//Split reads chunks from a chunk reader and stores each chunk encrypted under a
 //content-based key 'k' in the configured store. Compute intensive operations
-//are run concurrently but keys are guaranteed to arrive at 'keyH' in order,
-//i.e: key of the first chunk will be pushed first
-func Split(chunker InputChunker, kw KeyWriter, conf Config) error {
+//are run concurrently but keys are guaranteed to arrive at 'kw' in order,
+//i.e: key of the first chunk will be writtern first
+func Split(cr ChunkReader, kw KeyWriter, conf Config) error {
 
 	//result of working an item
 	type result struct {
@@ -40,7 +40,7 @@ func Split(chunker InputChunker, kw KeyWriter, conf Config) error {
 		defer close(itemCh)
 		pos := int64(0)
 		for {
-			chunk, err := chunker.Next()
+			chunk, err := cr.Read()
 			if err != nil {
 				if err != io.EOF {
 					itemCh <- &item{

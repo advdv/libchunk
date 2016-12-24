@@ -11,7 +11,7 @@ import (
 var SupportedChunkers = []string{"rabin"}
 
 //CreateChunker a store instance for any of the supported types
-func CreateChunker(ctype string, secret bits.Secret, input io.Reader) (c bits.InputChunker, err error) {
+func CreateChunker(ctype string, secret bits.Secret, input io.Reader) (cr bits.ChunkReader, err error) {
 	sname := ""
 	for _, supported := range SupportedChunkers {
 		if supported == ctype {

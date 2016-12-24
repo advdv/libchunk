@@ -6,11 +6,11 @@ import (
 	"os"
 )
 
-//Join will read and decrypt chunks for keys provided by the iterator and write
-//each chunk's contents to writer 'w' in order of key appearance. Chunks are
+//Join will read and decrypt chunks for keys provided by the key reader and write
+//each chunk's contents to chunk writer 'cw' in order of key appearance. Chunks are
 //fetched concurrently (locally or remote) but are guaranteed to arrive in
-//order to writer 'w' for assembly in the original format
-func Join(kr KeyReader, w io.Writer, conf Config) error {
+//order to writer 'cw' for assembly in the original format
+func Join(kr KeyReader, cw ChunkWriter, conf Config) error {
 
 	//result of working the item
 	type result struct {
@@ -114,7 +114,7 @@ func Join(kr KeyReader, w io.Writer, conf Config) error {
 			return fmt.Errorf("failed to work chunk '%s': %v", it.key, res.err)
 		}
 
-		_, err := w.Write(res.chunk)
+		_, err := cw.Write(res.chunk)
 		if err != nil {
 			return fmt.Errorf("failed to write chunk '%s' to output: %v", it.key, err)
 		}

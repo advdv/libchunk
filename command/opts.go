@@ -39,7 +39,7 @@ type ChunkerOpts struct {
 }
 
 //CreateChunker creates a input chunker from command line input and options
-func (opts *ChunkerOpts) CreateChunker(args []string, secret bits.Secret) (rc io.ReadCloser, c bits.InputChunker, err error) {
+func (opts *ChunkerOpts) CreateChunker(args []string, secret bits.Secret) (rc io.ReadCloser, c bits.ChunkReader, err error) {
 	rc = os.Stdin
 	if len(args) > 0 {
 		rc, err = os.Open(args[0])

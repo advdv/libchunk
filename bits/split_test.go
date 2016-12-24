@@ -14,7 +14,7 @@ func TestSplit(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {
 		name        string
-		input       bits.InputChunker
+		input       bits.ChunkReader
 		conf        bits.Config
 		minKeys     int
 		expectedErr string

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 )
 
 const (
@@ -37,9 +38,14 @@ type KeyExchange interface {
 	KeyWriter
 }
 
-//InputChunker allows reading one piece of input at a time
-type InputChunker interface {
-	Next() ([]byte, error)
+//ChunkReader allows reading one piece of input at a time
+type ChunkReader interface {
+	Read() ([]byte, error)
+}
+
+//ChunkWriter accepts chunks for writing
+type ChunkWriter interface {
+	io.Writer
 }
 
 //KeyIndex holds information about just the chunk keys
