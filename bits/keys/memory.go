@@ -31,13 +31,13 @@ func (iter *MemIterator) Reset() {
 }
 
 //Handle appends a new key to the internal slice
-func (iter *MemIterator) Handle(k bits.K) (err error) {
+func (iter *MemIterator) Write(k bits.K) (err error) {
 	iter.Keys = append(iter.Keys, k)
 	return nil
 }
 
 //Next returns a new key or io.EOF if no more keys are available
-func (iter *MemIterator) Next() (k bits.K, err error) {
+func (iter *MemIterator) Read() (k bits.K, err error) {
 	if iter.i > len(iter.Keys)-1 {
 		return k, io.EOF
 	}

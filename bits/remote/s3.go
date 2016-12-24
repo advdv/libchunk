@@ -57,7 +57,7 @@ func (r *S3Remote) rawBucketURL() string {
 }
 
 //Index will use the remoet list interface to fetch all keys in the bucket
-func (r *S3Remote) Index(h bits.KeyHandler) (err error) {
+func (r *S3Remote) Index(kw bits.KeyWriter) (err error) {
 	v := struct {
 		XMLName               xml.Name `xml:"ListBucketResult"`
 		Name                  string   `xml:"Name"`
@@ -116,7 +116,7 @@ func (r *S3Remote) Index(h bits.KeyHandler) (err error) {
 				continue
 			}
 
-			err = h.Handle(k)
+			err = kw.Write(k)
 			if err != nil {
 				return fmt.Errorf("index key handler failed: %v", err)
 			}

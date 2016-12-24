@@ -10,7 +10,7 @@ import (
 //each chunk's contents to writer 'w' in order of key appearance. Chunks are
 //fetched concurrently (locally or remote) but are guaranteed to arrive in
 //order to writer 'w' for assembly in the original format
-func Join(iter KeyIterator, w io.Writer, conf Config) error {
+func Join(kr KeyReader, w io.Writer, conf Config) error {
 
 	//result of working the item
 	type result struct {
@@ -69,7 +69,7 @@ func Join(iter KeyIterator, w io.Writer, conf Config) error {
 		defer close(itemCh)
 		pos := int64(0)
 		for {
-			k, err := iter.Next()
+			k, err := kr.Read()
 			if err != nil {
 				if err != io.EOF {
 					itemCh <- &item{

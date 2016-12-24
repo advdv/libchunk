@@ -23,12 +23,12 @@ func NewStdioIterator(r io.Reader, w io.Writer) *StdioIterator {
 func (iter *StdioIterator) Reset() {}
 
 //Next scans for the next key on the reader
-func (iter *StdioIterator) Next() (k bits.K, err error) {
+func (iter *StdioIterator) Read() (k bits.K, err error) {
 	return k, fmt.Errorf("not yet implemented")
 }
 
 //Handle will simply encode and write the key newline separated
-func (iter *StdioIterator) Handle(k bits.K) (err error) {
+func (iter *StdioIterator) Write(k bits.K) (err error) {
 	_, err = fmt.Fprintf(iter.w, "%s\n", k)
 	return err
 }

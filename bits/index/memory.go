@@ -23,7 +23,7 @@ func (idx *MemIndex) Has(k bits.K) bool {
 
 //Handle allows this index to be used as a KeyHandler
 //in this case each key 'k' is added uniquely to the index
-func (idx *MemIndex) Handle(k bits.K) error {
+func (idx *MemIndex) Write(k bits.K) error {
 	idx.Keys[k] = struct{}{}
 	return nil
 }

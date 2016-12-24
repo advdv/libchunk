@@ -19,22 +19,22 @@ var (
 	ErrNoSuchKey = errors.New("no such key")
 )
 
-//KeyHandler is called when a key is outputted
-type KeyHandler interface {
-	Handle(k K) error
+//KeyWriter is called when a key is outputted
+type KeyWriter interface {
+	Write(k K) error
 }
 
-//KeyIterator will return keys while calling
-type KeyIterator interface {
+//KeyReader will return keys while calling
+type KeyReader interface {
 	Reset()
-	Next() (K, error)
+	Read() (K, error)
 }
 
 //KeyExchange describes a method for handling
 //key outputs and taking key input through iteration.
 type KeyExchange interface {
-	KeyIterator
-	KeyHandler
+	KeyReader
+	KeyWriter
 }
 
 //InputChunker allows reading one piece of input at a time
@@ -44,14 +44,14 @@ type InputChunker interface {
 
 //KeyIndex holds information about just the chunk keys
 type KeyIndex interface {
-	KeyHandler
+	KeyWriter
 	Has(k K) bool
 }
 
 //Remote stores chunks remotely but should provide an indexing mechanism
 //that allow clients to skip PUT calls altogether
 type Remote interface {
-	Index(KeyHandler) error
+	Index(KeyWriter) error
 
 	Store //but it is still a store
 }

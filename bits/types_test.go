@@ -55,7 +55,7 @@ type failingKeyIterator struct {
 	*bitskeys.MemIterator
 }
 
-func (iter *failingKeyIterator) Next() (k bits.K, err error) {
+func (iter *failingKeyIterator) Read() (k bits.K, err error) {
 	return k, fmt.Errorf("iterator_failure")
 }
 
@@ -166,6 +166,6 @@ func (input *failingChunker) Next() (c []byte, err error) {
 
 type failingKeyHandler struct{}
 
-func (iter *failingKeyHandler) Handle(k bits.K) (err error) {
+func (iter *failingKeyHandler) Write(k bits.K) (err error) {
 	return fmt.Errorf("handler_failed")
 }

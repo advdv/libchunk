@@ -28,7 +28,7 @@ func TestJoinFromRemote(t *testing.T) {
 	cases := []struct {
 		name string
 		conf bits.Config
-		iter bits.KeyIterator
+		kr   bits.KeyReader
 	}{{
 		"9MiB_from_remote",
 		conf,
@@ -38,7 +38,7 @@ func TestJoinFromRemote(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			err := bits.Join(c.iter, buf, c.conf)
+			err := bits.Join(c.kr, buf, c.conf)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,9 +58,9 @@ func TestJoinFromLocal(t *testing.T) {
 		name   string
 		input  []byte
 		output io.ReadWriter
-		iter   interface {
-			bits.KeyHandler
-			bits.KeyIterator
+		keyrw  interface {
+			bits.KeyWriter
+			bits.KeyReader
 		}
 		corrupt     func(bits.K, bits.Config)
 		conf        bits.Config
@@ -138,21 +138,21 @@ func TestJoinFromLocal(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			iter := c.iter
+			krw := c.keyrw
 			if c.input != nil {
-				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), iter, c.conf)
+				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 
 			if c.corrupt != nil {
-				k, err := iter.Next()
+				k, err := krw.Read()
 				if err != nil {
 					t.Fatal("instructed to corrupt a key, but no keys available")
 				}
 
-				iter.Reset()
+				krw.Reset()
 				c.corrupt(k, c.conf)
 			}
 
@@ -161,7 +161,7 @@ func TestJoinFromLocal(t *testing.T) {
 				output = bytes.NewBuffer(nil)
 			}
 
-			err := bits.Join(iter, output, c.conf)
+			err := bits.Join(krw, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("joining shouldnt fail but got: %v", err)

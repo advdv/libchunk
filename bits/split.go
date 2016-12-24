@@ -9,7 +9,7 @@ import (
 //content-based key 'k' in the configured store. Compute intensive operations
 //are run concurrently but keys are guaranteed to arrive at 'keyH' in order,
 //i.e: key of the first chunk will be pushed first
-func Split(chunker InputChunker, h KeyHandler, conf Config) error {
+func Split(chunker InputChunker, kw KeyWriter, conf Config) error {
 
 	//result of working an item
 	type result struct {
@@ -84,7 +84,7 @@ func Split(chunker InputChunker, h KeyHandler, conf Config) error {
 			return fmt.Errorf("work failed on chunk '%s': %v", res.key, res.err)
 		}
 
-		err := h.Handle(res.key)
+		err := kw.Write(res.key)
 		if err != nil {
 			return fmt.Errorf("chunk handle for '%s' failed: %v", res.key, err)
 		}

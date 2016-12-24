@@ -15,9 +15,9 @@ func TestPush(t *testing.T) {
 	cases := []struct {
 		name  string
 		input []byte
-		iter  interface {
-			bits.KeyHandler
-			bits.KeyIterator
+		keyrw interface {
+			bits.KeyWriter
+			bits.KeyReader
 		}
 		conf        bits.Config
 		expectedErr string
@@ -38,17 +38,17 @@ func TestPush(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			iter := c.iter
+			krw := c.keyrw
 			if c.input != nil {
 
-				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), iter, c.conf)
+				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 
 			firstH := &bitskeys.MemIterator{}
-			err := bits.Push(iter, firstH, c.conf)
+			err := bits.Push(krw, firstH, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("pushing shouldnt fail but got: %v", err)
@@ -67,8 +67,8 @@ func TestPush(t *testing.T) {
 
 			if c.conf.Index != nil {
 				secondH := &bitskeys.MemIterator{}
-				iter.Reset()
-				err = bits.Push(iter, secondH, c.conf)
+				krw.Reset()
+				err = bits.Push(krw, secondH, c.conf)
 				if err != nil {
 					t.Errorf("second (index test) push failed: %v", err)
 				}

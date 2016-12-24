@@ -18,7 +18,7 @@ func TestSplit(t *testing.T) {
 		conf        bits.Config
 		minKeys     int
 		expectedErr string
-		keyPutter   bits.KeyHandler
+		keyw        bits.KeyWriter
 	}{{
 		"9MiB_random_default_conf", //chunker max size is 8Mib, so expect at least 2 chunks
 		randBytesInput(bytes.NewBuffer(randb(9*1024*1024)), secret),
@@ -61,7 +61,7 @@ func TestSplit(t *testing.T) {
 
 			var keys []bits.K
 			var err error
-			if c.keyPutter == nil {
+			if c.keyw == nil {
 				h := bitskeys.NewMemIterator()
 				err = bits.Split(c.input, h, c.conf)
 				keys = h.Keys
@@ -70,7 +70,7 @@ func TestSplit(t *testing.T) {
 					t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
 				}
 			} else {
-				err = bits.Split(c.input, c.keyPutter, c.conf)
+				err = bits.Split(c.input, c.keyw, c.conf)
 			}
 
 			if err != nil {
