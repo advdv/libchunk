@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/store"
 )
 
@@ -58,7 +58,7 @@ func BenchmarkConfigurations(b *testing.B) {
 }
 
 func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf bits.Config) {
-	keys := &bitsiterator.MemIterator{}
+	keys := &bitskeys.MemIterator{}
 	store := bitsstore.NewMemStore()
 	input := randBytesInput(bytes.NewReader(data), secret)
 	err := bits.Split(input, keys, withStore(b, defaultConf(b, secret), store))
@@ -91,7 +91,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf b
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		input := randBytesInput(bytes.NewReader(data), secret)
-		h := &bitsiterator.MemIterator{}
+		h := &bitskeys.MemIterator{}
 		err := bits.Split(input, h, conf)
 
 		keys = h.Keys
@@ -117,7 +117,7 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []bits.K, data []byte
 		}
 
 		defer os.Remove(outf.Name())
-		iter := bitsiterator.NewMemIterator()
+		iter := bitskeys.NewMemIterator()
 		iter.Keys = keys
 		err = bits.Join(iter, outf, conf)
 		outf.Close()
@@ -131,8 +131,8 @@ func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []bits.K, data [
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
-		iter := &bitsiterator.MemIterator{Keys: keys}
-		h := &bitsiterator.MemIterator{}
+		iter := &bitskeys.MemIterator{Keys: keys}
+		h := &bitskeys.MemIterator{}
 		err := bits.Push(iter, h, conf)
 		if err != nil {
 			b.Fatal(err)

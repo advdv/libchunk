@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/chunker"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/chunks"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 
@@ -18,16 +18,16 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
-//ExchangeOpts holds options for key exchange: iterators and handlers
+//ExchangeOpts holds options for key exchange: keyss and handlers
 type ExchangeOpts struct {
-	ExchangeType string `long:"iterator" default:"stdio" description:"method through which chunk keys are exchanged, supports: {{.SupportedExchanges}}" value-name:"stdio"`
+	ExchangeType string `long:"keys" default:"stdio" description:"method through which chunk keys are exchanged, supports: {{.SupportedExchanges}}" value-name:"stdio"`
 }
 
-//CreateExchange will setup an iterator using the configured type
+//CreateExchange will setup an keys using the configured type
 func (opts *ExchangeOpts) CreateExchange(r io.Reader, w io.Writer) (iter bits.KeyExchange, err error) {
-	iter, err = bitsiterator.CreateIterator(opts.ExchangeType, r, w)
+	iter, err = bitskeys.CreateIterator(opts.ExchangeType, r, w)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't setup iterator from configured type: %v", err)
+		return nil, fmt.Errorf("couldn't setup keys from configured type: %v", err)
 	}
 
 	return iter, nil
@@ -48,7 +48,7 @@ func (opts *ChunkerOpts) CreateChunker(args []string, secret bits.Secret) (rc io
 		}
 	}
 
-	c, err = bitschunker.CreateChunker(opts.ChunkerType, secret, rc)
+	c, err = bitschunks.CreateChunker(opts.ChunkerType, secret, rc)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create chunker of this type: %v", err)
 	}

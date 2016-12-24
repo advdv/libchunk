@@ -7,7 +7,7 @@ import (
 
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/index"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/keys"
 )
 
 func TestPush(t *testing.T) {
@@ -25,13 +25,13 @@ func TestPush(t *testing.T) {
 		{
 			"9MiB_random_defaultconf",
 			randb(9 * 1024 * 1024),
-			bitsiterator.NewMemIterator(),
+			bitskeys.NewMemIterator(),
 			conf,
 			"",
 		}, {
 			"9MiB_random_defaultconf_index",
 			randb(9 * 1024 * 1024),
-			bitsiterator.NewMemIterator(),
+			bitskeys.NewMemIterator(),
 			withIndex(t, conf, bitsindex.NewMemIndex()),
 			"",
 		}}
@@ -47,7 +47,7 @@ func TestPush(t *testing.T) {
 				}
 			}
 
-			firstH := &bitsiterator.MemIterator{}
+			firstH := &bitskeys.MemIterator{}
 			err := bits.Push(iter, firstH, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
@@ -66,7 +66,7 @@ func TestPush(t *testing.T) {
 			}
 
 			if c.conf.Index != nil {
-				secondH := &bitsiterator.MemIterator{}
+				secondH := &bitskeys.MemIterator{}
 				iter.Reset()
 				err = bits.Push(iter, secondH, c.conf)
 				if err != nil {

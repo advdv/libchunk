@@ -1,4 +1,4 @@
-package bitsiterator
+package bitskeys
 
 import (
 	"fmt"

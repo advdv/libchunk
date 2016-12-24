@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/chunker"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/chunks"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 )
@@ -52,7 +52,7 @@ func (w *failingWriter) Write(p []byte) (n int, err error) {
 }
 
 type failingKeyIterator struct {
-	*bitsiterator.MemIterator
+	*bitskeys.MemIterator
 }
 
 func (iter *failingKeyIterator) Next() (k bits.K, err error) {
@@ -142,12 +142,12 @@ type randomBytesInput struct {
 
 func randBytesInput(r io.Reader, secret bits.Secret) *randomBytesInput {
 	return &randomBytesInput{
-		InputChunker: bitschunker.NewRabinChunker(r, secret.Pol()),
+		InputChunker: bitschunks.NewRabinChunker(r, secret.Pol()),
 	}
 }
 
 // func (input *randomBytesInput) Chunker(conf bits.Config) (bits.Chunker, error) {
-// 	return chunker.New(input, conf.Secret.Pol()), nil
+// 	returnschunks.New(input, conf.Secret.Pol()), nil
 // }
 
 type failingChunker struct{}
@@ -160,7 +160,7 @@ func (input *failingChunker) Next() (c []byte, err error) {
 // 	*bytes.Buffer
 // }
 //
-// func (input *failingInput) Next([]byte) (c chunker.Chunk, err error) {
+// func (input *failingInput) Next([]byte) (cschunks.Chunk, err error) {
 // 	return c, fmt.Errorf("input_failed")
 // }
 

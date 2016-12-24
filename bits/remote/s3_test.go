@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/remote"
 
 	"github.com/smartystreets/go-aws-auth"
@@ -70,7 +70,7 @@ func TestActualS3PutGet(t *testing.T) {
 		t.Fatal("expected input and output to be the same")
 	}
 
-	iter := bitsiterator.NewMemIterator()
+	iter := bitskeys.NewMemIterator()
 	err = remote.Index(iter)
 	if err != nil {
 		t.Fatalf("key indexing of remote shouldnt fail: %v", err)

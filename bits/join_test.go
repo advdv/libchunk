@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/boltdb/bolt"
@@ -16,7 +16,7 @@ import (
 
 func TestJoinFromRemote(t *testing.T) {
 	data := randb(9 * 1024 * 1024)
-	keys := bitsiterator.NewMemIterator()
+	keys := bitskeys.NewMemIterator()
 	store := bitsstore.NewMemStore()
 	input := randBytesInput(bytes.NewReader(data), secret)
 	err := bits.Split(input, keys, withStore(t, defaultConf(t, secret), store))
@@ -69,7 +69,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"no_keys_provided",
 		nil,
 		nil,
-		bitsiterator.NewMemIterator(),
+		bitskeys.NewMemIterator(),
 		nil,
 		conf,
 		"",
@@ -77,7 +77,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"key_not_in_db",
 		nil,
 		nil,
-		bitsiterator.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
+		bitskeys.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
 		nil,
 		conf,
 		"no such key",
@@ -85,12 +85,12 @@ func TestJoinFromLocal(t *testing.T) {
 		"storage_failure",
 		nil,
 		nil,
-		bitsiterator.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
+		bitskeys.NewPopulatedMemIterator([]bits.K{bits.K([32]byte{})}),
 		nil,
 		withStore(t, defaultConf(t, secret), &failingStore{}),
 		"storage_failed",
 	}, {
-		"iterator_fails",
+		"keys_fails",
 		nil,
 		nil,
 		&failingKeyIterator{},
@@ -101,7 +101,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"9MiB_random_defaultconf",
 		randb(9 * 1024 * 1024),
 		nil,
-		bitsiterator.NewMemIterator(),
+		bitskeys.NewMemIterator(),
 		nil,
 		conf,
 		"",
@@ -109,7 +109,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"9MiB_fail_to_write_output",
 		randb(9 * 1024 * 1024),
 		&failingWriter{bytes.NewBuffer(nil)},
-		bitsiterator.NewMemIterator(),
+		bitskeys.NewMemIterator(),
 		nil,
 		conf,
 		"writer_failure",
@@ -117,7 +117,7 @@ func TestJoinFromLocal(t *testing.T) {
 		"chunk_corrupted",
 		randb(9 * 1024 * 1024),
 		nil,
-		bitsiterator.NewMemIterator(),
+		bitskeys.NewMemIterator(),
 		func(k bits.K, conf bits.Config) {
 			switch store := conf.Store.(type) {
 			case *bitsstore.BoltStore:

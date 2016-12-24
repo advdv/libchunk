@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 
@@ -56,7 +56,7 @@ func (cmd *Join) Help() string {
 		SupportedStores    []string
 		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitsiterator.SupportedIterators})
+	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedIterators})
 
 	return fmt.Sprintf(`
   %s. By default

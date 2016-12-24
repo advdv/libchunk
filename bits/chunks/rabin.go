@@ -1,4 +1,4 @@
-package bitschunker
+package bitschunks
 
 import (
 	"io"

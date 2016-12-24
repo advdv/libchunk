@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/advanderveer/libchunk/bits"
-	"github.com/advanderveer/libchunk/bits/chunker"
-	"github.com/advanderveer/libchunk/bits/iterator"
+	"github.com/advanderveer/libchunk/bits/chunks"
+	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/jessevdk/go-flags"
@@ -55,7 +55,7 @@ func (cmd *Split) Help() string {
 		SupportedStores    []string
 		SupportedChunkers  []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitschunker.SupportedChunkers, bitsiterator.SupportedIterators})
+	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitskeys.SupportedIterators})
 
 	return fmt.Sprintf(`
   %s. By default
@@ -95,7 +95,7 @@ func (cmd *Split) Run(args []string) int {
 //DoRun is called by run and allows an error to be returned
 func (cmd *Split) DoRun(args []string) error {
 	//@TODO make io configurable, reader(stdin/file) writer(stdin/file/atomicfile)
-	//@TODO fix exchange/protocol/iterator abstractions
+	//@TODO fix exchange/protocol/keys abstractions
 
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
 	if err != nil {
