@@ -20,7 +20,7 @@ type PushOpts struct {
 	SecretOpts
 	LocalStoreOpts
 	RemoteOpts
-	ExchangeOpts
+	// KeyIOOpts
 }
 
 //Push command
@@ -55,7 +55,7 @@ func (cmd *Push) Help() string {
 		SupportedStores    []string
 		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedIterators})
+	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyIO})
 
 	return fmt.Sprintf(`
   %s.
@@ -105,10 +105,10 @@ func (cmd *Push) DoRun(args []string) error {
 		return err
 	}
 
-	ex, err := cmd.opts.ExchangeOpts.CreateExchange(os.Stdin, os.Stdout)
-	if err != nil {
-		return err
-	}
+	// ex, err := cmd.opts.KeyIOOpts.CreateKeyIO(os.Stdin, os.Stdout)
+	// if err != nil {
+	// 	return err
+	// }
 
 	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
 	if err != nil {
@@ -122,5 +122,6 @@ func (cmd *Push) DoRun(args []string) error {
 
 	conf.Remote = remote
 	conf.Store = store
-	return bits.Push(ex, ex, conf)
+	return fmt.Errorf("abc")
+	// return bits.Push(ex, ex, conf)
 }

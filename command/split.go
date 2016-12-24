@@ -18,9 +18,11 @@ import (
 //SplitOpts describes command options
 type SplitOpts struct {
 	SecretOpts
+	ChunkOpts
+	KeyOpts
 	LocalStoreOpts
-	ChunkerOpts
-	ExchangeOpts
+	InputOpts
+	OutputOpts
 }
 
 //Split command
@@ -55,7 +57,7 @@ func (cmd *Split) Help() string {
 		SupportedStores    []string
 		SupportedChunkers  []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitskeys.SupportedIterators})
+	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitskeys.SupportedKeyIO})
 
 	return fmt.Sprintf(`
   %s. By default
@@ -94,27 +96,34 @@ func (cmd *Split) Run(args []string) int {
 
 //DoRun is called by run and allows an error to be returned
 func (cmd *Split) DoRun(args []string) error {
-	//@TODO make io configurable, reader(stdin/file) writer(stdin/file/atomicfile)
-	//@TODO fix exchange/protocol/keys abstractions
-
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
 	if err != nil {
 		return err
 	}
 
-	//@TODO this should instead accept the configured IO option
-	rc, chunker, err := cmd.opts.CreateChunker(args, secret)
+	rc, err := cmd.opts.InputOpts.CreateReader(args)
 	if err != nil {
 		return err
 	}
 
 	defer rc.Close()
-	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
+	wc, err := cmd.opts.OutputOpts.CreateWriter([]string{})
 	if err != nil {
 		return err
 	}
 
-	ex, err := cmd.opts.ExchangeOpts.CreateExchange(rc, os.Stdout)
+	defer wc.Close()
+	kw, err := cmd.opts.KeyOpts.CreateKeyWriter(wc)
+	if err != nil {
+		return err
+	}
+
+	cr, err := cmd.opts.ChunkOpts.CreateChunkReader(rc, secret)
+	if err != nil {
+		return err
+	}
+
+	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
 	if err != nil {
 		return err
 	}
@@ -125,5 +134,5 @@ func (cmd *Split) DoRun(args []string) error {
 	}
 
 	conf.Store = store
-	return bits.Split(chunker, ex, conf)
+	return bits.Split(cr, kw, conf)
 }

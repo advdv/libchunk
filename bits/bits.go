@@ -31,13 +31,6 @@ type KeyReader interface {
 	Read() (K, error)
 }
 
-//KeyExchange describes a method for handling
-//key outputs and taking key input through iteration.
-type KeyExchange interface {
-	KeyReader
-	KeyWriter
-}
-
 //ChunkReader allows reading one piece of input at a time
 type ChunkReader interface {
 	Read() ([]byte, error)
@@ -58,7 +51,6 @@ type KeyIndex interface {
 //that allow clients to skip PUT calls altogether
 type Remote interface {
 	Index(KeyWriter) error
-
 	Store //but it is still a store
 }
 

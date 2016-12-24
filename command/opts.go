@@ -18,42 +18,75 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
-//ExchangeOpts holds options for key exchange: keyss and handlers
-type ExchangeOpts struct {
-	ExchangeType string `long:"keys" default:"stdio" description:"method through which chunk keys are exchanged, supports: {{.SupportedExchanges}}" value-name:"stdio"`
+//InputOpts configure how bytes reach the program
+type InputOpts struct {
+	//@TODO allow file configuration if first arg is already used
 }
 
-//CreateExchange will setup an keys using the configured type
-func (opts *ExchangeOpts) CreateExchange(r io.Reader, w io.Writer) (iter bits.KeyExchange, err error) {
-	iter, err = bitskeys.CreateIterator(opts.ExchangeType, r, w)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't setup keys from configured type: %v", err)
-	}
-
-	return iter, nil
-}
-
-//ChunkerOpts document the options for chunking input
-type ChunkerOpts struct {
-	ChunkerType string `long:"chunker" default:"rabin" description:"method or algorithm used for chunking the raw input data, supports: {{.SupportedChunkers}}" value-name:"rabin"`
-}
-
-//CreateChunker creates a input chunker from command line input and options
-func (opts *ChunkerOpts) CreateChunker(args []string, secret bits.Secret) (rc io.ReadCloser, c bits.ChunkReader, err error) {
+//CreateReader creates a reader by looking at the in option or the first argument
+func (opts *InputOpts) CreateReader(args []string) (rc io.ReadCloser, err error) {
 	rc = os.Stdin
 	if len(args) > 0 {
 		rc, err = os.Open(args[0])
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to open the first argument ('%s') as a file: %v", args[0], err)
+			return nil, fmt.Errorf("failed to open the first argument ('%s') as a file: %v", args[0], err)
 		}
 	}
 
-	c, err = bitschunks.CreateChunker(opts.ChunkerType, secret, rc)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create chunker of this type: %v", err)
+	return rc, nil
+}
+
+//OutputOpts configure how bytes leave the program
+type OutputOpts struct {
+	//@TODO allow file configuration if first arg is already used
+}
+
+//CreateWriter will setup a byte writer based on cli options and args
+func (opts *OutputOpts) CreateWriter(args []string) (wc io.WriteCloser, err error) {
+	wc = os.Stdout
+	if len(args) > 0 {
+		wc, err = os.OpenFile(args[0], os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open the first argument ('%s') as a file for writing: %v", args[0], err)
+		}
 	}
 
-	return rc, c, nil
+	return wc, nil
+}
+
+//ChunkOpts configures how we will receive chunks
+type ChunkOpts struct {
+	ChunkerType string `long:"chunker" default:"rabin" value-name:"rabin" description:"method or algorithm used for chunking the raw input data, supports: {{.SupportedChunkers}}"`
+}
+
+//CreateChunkReader will setup a chunk reader based on the cli options
+func (opts *ChunkOpts) CreateChunkReader(r io.Reader, secret bits.Secret) (cr bits.ChunkReader, err error) {
+	cr, err = bitschunks.CreateChunker(opts.ChunkerType, secret, r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chunker of this type: %v", err)
+	}
+
+	return cr, nil
+}
+
+//KeyOpts configures how keys are handled
+type KeyOpts struct {
+	KeyIOType string `long:"key-io" default:"b64-textlines" value-name:"b64-textlines" description:"DOC ME"`
+}
+
+//CreateKeyWriter will setup a way of writing keys using cli options
+func (opts *KeyOpts) CreateKeyWriter(w io.Writer) (kw bits.KeyWriter, err error) {
+	kw, err = bitskeys.CreateKeyWriter(opts.KeyIOType, w)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup key-io: %v", err)
+	}
+
+	// kw, err = bitskeys.CreateKeyReadWriter(opts.KeyRWType, )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create a key read writer: %v", err)
+	// }
+
+	return kw, nil
 }
 
 //SecretOpts documents the secret option used by various commands

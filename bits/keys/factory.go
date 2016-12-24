@@ -7,30 +7,30 @@ import (
 	"github.com/advanderveer/libchunk/bits"
 )
 
-//SupportedIterators holds identifiers for all supported stores
-var SupportedIterators = []string{"stdio", "mem"}
+//SupportedKeyIO holds identifiers for all supported stores
+var SupportedKeyIO = []string{"b64-textlines", "mem"}
 
-//CreateIterator a iterator instance for any of the supported types
-func CreateIterator(itype string, r io.Reader, w io.Writer) (c bits.KeyExchange, err error) {
+//CreateKeyWriter attempts to create a specific writer
+func CreateKeyWriter(iotype string, w io.Writer) (kw bits.KeyWriter, err error) {
 	sname := ""
-	for _, supported := range SupportedIterators {
-		if supported == itype {
+	for _, supported := range SupportedKeyIO {
+		if supported == iotype {
 			sname = supported
 			break
 		}
 	}
 
 	if sname == "" {
-		return nil, fmt.Errorf("store type '%s' is not supported, available store types are: %v", itype, SupportedIterators)
+		return nil, fmt.Errorf("store type '%s' is not supported, available store types are: %v", iotype, SupportedKeyIO)
 	}
 
 	//maps factory args unto actual store creation
 	switch sname {
 	case "stdio":
-		return NewStdioIterator(r, w), nil
+		return &TextLineKeyWriter{w}, nil
 	case "mem":
-		return NewMemIterator(), nil
+		return nil, fmt.Errorf("not implemented")
 	default:
-		return nil, fmt.Errorf("store type '%s' is not currently implemented", itype)
+		return nil, fmt.Errorf("type '%s' is not currently implemented", iotype)
 	}
 }

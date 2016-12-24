@@ -7,28 +7,13 @@ import (
 	"github.com/advanderveer/libchunk/bits"
 )
 
-//StdioIterator scans newline separated encoded keys from a reader
-//amd writes encoded (Stringer) keys to a writer as a key handler
-type StdioIterator struct {
+//TextLineKeyWriter writes keys in encoded, each on a new line
+type TextLineKeyWriter struct {
 	w io.Writer
-	r io.Reader
 }
 
-//NewStdioIterator creates a new iterator that writes to 'w' and read from 'r'
-func NewStdioIterator(r io.Reader, w io.Writer) *StdioIterator {
-	return &StdioIterator{w, r}
-}
-
-//Reset is a no-op for this iterator
-func (iter *StdioIterator) Reset() {}
-
-//Next scans for the next key on the reader
-func (iter *StdioIterator) Read() (k bits.K, err error) {
-	return k, fmt.Errorf("not yet implemented")
-}
-
-//Handle will simply encode and write the key newline separated
-func (iter *StdioIterator) Write(k bits.K) (err error) {
-	_, err = fmt.Fprintf(iter.w, "%s\n", k)
+//Write implementes key writer
+func (kw *TextLineKeyWriter) Write(k bits.K) (err error) {
+	_, err = fmt.Fprintf(kw.w, "%s\n", k)
 	return err
 }

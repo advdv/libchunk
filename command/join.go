@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
 
 	"github.com/advanderveer/libchunk/bits"
@@ -18,7 +17,7 @@ import (
 
 //JoinOpts describes command options
 type JoinOpts struct {
-	ExchangeOpts
+	// KeyIOOpts
 	SecretOpts
 	LocalStoreOpts
 	RemoteOpts
@@ -56,7 +55,7 @@ func (cmd *Join) Help() string {
 		SupportedStores    []string
 		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedIterators})
+	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyIO})
 
 	return fmt.Sprintf(`
   %s. By default
@@ -104,10 +103,10 @@ func (cmd *Join) DoRun(args []string) error {
 		return err
 	}
 
-	ex, err := cmd.opts.ExchangeOpts.CreateExchange(os.Stdin, ioutil.Discard)
-	if err != nil {
-		return err
-	}
+	// ex, err := cmd.opts.KeyIOOpts.CreateKeyIO(os.Stdin, ioutil.Discard)
+	// if err != nil {
+	// 	return err
+	// }
 
 	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
 	if err != nil {
@@ -121,5 +120,7 @@ func (cmd *Join) DoRun(args []string) error {
 
 	conf.Store = store
 	conf.Remote = remote
-	return bits.Join(ex, os.Stdout, conf)
+	return fmt.Errorf("abc")
+
+	// return bits.Join(ex, os.Stdout, conf)
 }
