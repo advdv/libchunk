@@ -69,24 +69,39 @@ func (opts *ChunkOpts) CreateChunkReader(r io.Reader, secret bits.Secret) (cr bi
 	return cr, nil
 }
 
+//CreateChunkWriter will setup a chunk writer based on the cli options
+func (opts *ChunkOpts) CreateChunkWriter(w io.Writer) (cw bits.ChunkWriter, err error) {
+	cw, err = bitschunks.CreateChunkWriter(opts.ChunkerType, w)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chunk writer of this type: %v", err)
+	}
+
+	return cw, nil
+}
+
 //KeyOpts configures how keys are handled
 type KeyOpts struct {
-	KeyIOType string `long:"key-io" default:"b64-textlines" value-name:"b64-textlines" description:"DOC ME"`
+	KeyFormat string `long:"key-fmt" default:"b64-textlines" value-name:"b64-textlines" description:"DOC ME"`
 }
 
 //CreateKeyWriter will setup a way of writing keys using cli options
 func (opts *KeyOpts) CreateKeyWriter(w io.Writer) (kw bits.KeyWriter, err error) {
-	kw, err = bitskeys.CreateKeyWriter(opts.KeyIOType, w)
+	kw, err = bitskeys.CreateKeyWriter(opts.KeyFormat, w)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup key-io: %v", err)
 	}
 
-	// kw, err = bitskeys.CreateKeyReadWriter(opts.KeyRWType, )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create a key read writer: %v", err)
-	// }
-
 	return kw, nil
+}
+
+//CreateKeyReader will setup a way of writing keys using cli options
+func (opts *KeyOpts) CreateKeyReader(r io.Reader) (kr bits.KeyReader, err error) {
+	kr, err = bitskeys.CreateKeyReader(opts.KeyFormat, r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup key-io: %v", err)
+	}
+
+	return kr, nil
 }
 
 //SecretOpts documents the secret option used by various commands

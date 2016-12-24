@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/advanderveer/libchunk/bits"
+	"github.com/advanderveer/libchunk/bits/chunks"
 	"github.com/advanderveer/libchunk/bits/keys"
 	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
@@ -17,10 +18,12 @@ import (
 
 //JoinOpts describes command options
 type JoinOpts struct {
-	// KeyIOOpts
+	OutputOpts
+	InputOpts
+	KeyOpts
+	ChunkOpts
 	SecretOpts
 	LocalStoreOpts
-	RemoteOpts
 }
 
 //Join command
@@ -53,9 +56,10 @@ func (cmd *Join) Help() string {
 	buf2 := bytes.NewBuffer(nil)
 	template.Must(template.New("help").Parse(buf.String())).Execute(buf2, struct {
 		SupportedStores    []string
+		SupportedChunkers  []string
 		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyIO})
+	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitsremote.SupportedRemotes, bitskeys.SupportedKeyFormats})
 
 	return fmt.Sprintf(`
   %s. By default
@@ -103,12 +107,24 @@ func (cmd *Join) DoRun(args []string) error {
 		return err
 	}
 
-	// ex, err := cmd.opts.KeyIOOpts.CreateKeyIO(os.Stdin, ioutil.Discard)
-	// if err != nil {
-	// 	return err
-	// }
+	rc, err := cmd.opts.InputOpts.CreateReader([]string{})
+	if err != nil {
+		return err
+	}
 
-	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
+	defer rc.Close()
+	wc, err := cmd.opts.OutputOpts.CreateWriter(args)
+	if err != nil {
+		return err
+	}
+
+	defer wc.Close()
+	kr, err := cmd.opts.KeyOpts.CreateKeyReader(rc)
+	if err != nil {
+		return err
+	}
+
+	cw, err := cmd.opts.ChunkOpts.CreateChunkWriter(wc)
 	if err != nil {
 		return err
 	}
@@ -119,8 +135,5 @@ func (cmd *Join) DoRun(args []string) error {
 	}
 
 	conf.Store = store
-	conf.Remote = remote
-	return fmt.Errorf("abc")
-
-	// return bits.Join(ex, os.Stdout, conf)
+	return bits.Join(kr, cw, conf)
 }

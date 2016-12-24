@@ -55,7 +55,7 @@ func (cmd *Push) Help() string {
 		SupportedStores    []string
 		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyIO})
+	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyFormats})
 
 	return fmt.Sprintf(`
   %s.

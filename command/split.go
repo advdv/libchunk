@@ -57,7 +57,7 @@ func (cmd *Split) Help() string {
 		SupportedStores    []string
 		SupportedChunkers  []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitskeys.SupportedKeyIO})
+	}{bitsstore.SupportedStores, bitschunks.SupportedChunkers, bitskeys.SupportedKeyFormats})
 
 	return fmt.Sprintf(`
   %s. By default
