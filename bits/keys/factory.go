@@ -1,6 +1,7 @@
 package bitskeys
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 
@@ -26,7 +27,7 @@ func CreateKeyWriter(iotype string, w io.Writer) (kw bits.KeyWriter, err error) 
 
 	//maps factory args unto actual store creation
 	switch sname {
-	case "stdio":
+	case "b64-textlines":
 		return &TextLineKeyWriter{w}, nil
 	case "mem":
 		return nil, fmt.Errorf("not implemented")
@@ -51,8 +52,8 @@ func CreateKeyReader(iotype string, r io.Reader) (kr bits.KeyReader, err error) 
 
 	//maps factory args unto actual store creation
 	switch sname {
-	case "stdio":
-		return &TextLineKeyReader{r}, nil
+	case "b64-textlines":
+		return &TextLineKeyReader{bufio.NewScanner(r)}, nil
 	case "mem":
 		return nil, fmt.Errorf("not implemented")
 	default:

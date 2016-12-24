@@ -10,6 +10,7 @@ import (
 )
 
 //TestSplit tests splitting of data streams
+//@TODO test that keys already stored are still outputted (or not for deduplication testing)
 func TestSplit(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {

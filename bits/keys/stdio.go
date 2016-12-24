@@ -1,6 +1,7 @@
 package bitskeys
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 
@@ -20,13 +21,21 @@ func (kw *TextLineKeyWriter) Write(k bits.K) (err error) {
 
 //TextLineKeyReader writes keys in encoded, each on a new line
 type TextLineKeyReader struct {
-	w io.Reader
+	sc *bufio.Scanner
 }
 
 //Reset is not possible for this reader
-func (kw *TextLineKeyReader) Reset() {}
+func (kr *TextLineKeyReader) Reset() {}
 
 //Read implementes key reader
-func (kw *TextLineKeyReader) Read() (k bits.K, err error) {
-	return k, fmt.Errorf("not implemented")
+func (kr *TextLineKeyReader) Read() (k bits.K, err error) {
+	if !kr.sc.Scan() {
+		return k, io.EOF
+	}
+
+	if kr.sc.Err() != nil {
+		return k, kr.sc.Err()
+	}
+
+	return bits.DecodeKey(kr.sc.Bytes())
 }
