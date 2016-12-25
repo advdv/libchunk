@@ -17,10 +17,10 @@ import (
 
 //PushOpts describes command options
 type PushOpts struct {
+	KeyOpts
 	SecretOpts
 	LocalStoreOpts
 	RemoteOpts
-	// KeyIOOpts
 }
 
 //Push command
@@ -105,10 +105,34 @@ func (cmd *Push) DoRun(args []string) error {
 		return err
 	}
 
-	// ex, err := cmd.opts.KeyIOOpts.CreateKeyIO(os.Stdin, os.Stdout)
-	// if err != nil {
-	// 	return err
-	// }
+	rc := os.Stdin
+	if len(args) > 0 {
+		rc, err = os.Open(args[0])
+		if err != nil {
+			return fmt.Errorf("failed to open the first argument ('%s') as a file: %v", args[0], err)
+		}
+	}
+
+	defer rc.Close()
+	wc := os.Stdout
+	if len(args) > 1 {
+		wc, err = os.OpenFile(args[1], os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open second argument ('%s') as a file for writing: %v", args[1], err)
+		}
+	}
+
+	defer wc.Close()
+
+	kr, err := cmd.opts.KeyOpts.CreateKeyReader(rc)
+	if err != nil {
+		return err
+	}
+
+	kw, err := cmd.opts.KeyOpts.CreateKeyWriter(wc)
+	if err != nil {
+		return err
+	}
 
 	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
 	if err != nil {
@@ -122,6 +146,5 @@ func (cmd *Push) DoRun(args []string) error {
 
 	conf.Remote = remote
 	conf.Store = store
-	return fmt.Errorf("abc")
-	// return bits.Push(ex, ex, conf)
+	return bits.Push(kr, kw, conf)
 }

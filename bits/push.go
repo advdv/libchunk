@@ -47,6 +47,8 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 		}
 	}
 
+	fmt.Println(conf.Remote)
+
 	//fan-out
 	itemCh := make(chan *item, conf.PushConcurrency)
 	go func() {
