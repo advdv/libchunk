@@ -18,42 +18,6 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
-//InputOpts configure how bytes reach the program
-type InputOpts struct {
-	//@TODO allow file configuration if first arg is already used
-}
-
-//CreateReader creates a reader by looking at the in option or the first argument
-func (opts *InputOpts) CreateReader(args []string) (rc io.ReadCloser, err error) {
-	rc = os.Stdin
-	if len(args) > 0 {
-		rc, err = os.Open(args[0])
-		if err != nil {
-			return nil, fmt.Errorf("failed to open the first argument ('%s') as a file: %v", args[0], err)
-		}
-	}
-
-	return rc, nil
-}
-
-//OutputOpts configure how bytes leave the program
-type OutputOpts struct {
-	//@TODO allow file configuration if first arg is already used
-}
-
-//CreateWriter will setup a byte writer based on cli options and args
-func (opts *OutputOpts) CreateWriter(args []string) (wc io.WriteCloser, err error) {
-	wc = os.Stdout
-	if len(args) > 0 {
-		wc, err = os.OpenFile(args[0], os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open the first argument ('%s') as a file for writing: %v", args[0], err)
-		}
-	}
-
-	return wc, nil
-}
-
 //ChunkOpts configures how we will receive chunks
 type ChunkOpts struct {
 	ChunkerType string `long:"chunker" default:"rabin" value-name:"rabin" description:"method or algorithm used for chunking the raw input data, supports: {{.SupportedChunkers}}"`

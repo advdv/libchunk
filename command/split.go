@@ -21,8 +21,6 @@ type SplitOpts struct {
 	ChunkOpts
 	KeyOpts
 	LocalStoreOpts
-	InputOpts
-	OutputOpts
 }
 
 //Split command
@@ -95,24 +93,30 @@ func (cmd *Split) Run(args []string) int {
 }
 
 //DoRun is called by run and allows an error to be returned
-func (cmd *Split) DoRun(args []string) error {
+func (cmd *Split) DoRun(args []string) (err error) {
+	rc := os.Stdin
+	if len(args) > 0 {
+		rc, err = os.Open(args[0])
+		if err != nil {
+			return fmt.Errorf("failed to open the first argument ('%s') as a file: %v", args[0], err)
+		}
+	}
+
+	defer rc.Close()
+	wc := os.Stdout
+	if len(args) > 1 {
+		wc, err = os.OpenFile(args[1], os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open second argument ('%s') as a file for writing: %v", args[1], err)
+		}
+	}
+
+	defer wc.Close()
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
 	if err != nil {
 		return err
 	}
 
-	rc, err := cmd.opts.InputOpts.CreateReader(args)
-	if err != nil {
-		return err
-	}
-
-	defer rc.Close()
-	wc, err := cmd.opts.OutputOpts.CreateWriter([]string{})
-	if err != nil {
-		return err
-	}
-
-	defer wc.Close()
 	kw, err := cmd.opts.KeyOpts.CreateKeyWriter(wc)
 	if err != nil {
 		return err
