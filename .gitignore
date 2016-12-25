@@ -24,3 +24,6 @@ _testmain.go
 *.prof
 
 secrets.env
+infrastructure
+*.tfstate
+*.tfstate.backup
