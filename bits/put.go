@@ -5,11 +5,11 @@ import (
 	"io"
 )
 
-//Split reads chunks from a chunk reader and stores each chunk encrypted under a
+//Put reads chunks from a chunk reader and stores each chunk encrypted under a
 //content-based key 'k' in the configured store. Compute intensive operations
 //are run concurrently but keys are guaranteed to arrive at 'kw' in order,
 //i.e: key of the first chunk will be writtern first
-func Split(cr ChunkReader, kw KeyWriter, conf Config) error {
+func Put(cr ChunkReader, kw KeyWriter, conf Config) error {
 
 	//result of working an item
 	type result struct {
@@ -41,7 +41,7 @@ func Split(cr ChunkReader, kw KeyWriter, conf Config) error {
 	}
 
 	//fan out, closes channels when unable to perform more work
-	itemCh := make(chan *item, conf.SplitConcurrency)
+	itemCh := make(chan *item, conf.PutConcurrency)
 	go func() {
 		defer close(itemCh)
 		pos := int64(0)

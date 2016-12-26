@@ -9,9 +9,9 @@ import (
 	"github.com/advanderveer/libchunk/bits/keys"
 )
 
-//TestSplit tests splitting of data streams
+//TestPut tests splitting of data streams
 //@TODO test that keys already stored are still outputted (or not for deduplication testing)
-func TestSplit(t *testing.T) {
+func TestPut(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 	cases := []struct {
 		name        string
@@ -64,14 +64,14 @@ func TestSplit(t *testing.T) {
 			var err error
 			if c.keyw == nil {
 				h := bitskeys.NewMemIterator()
-				err = bits.Split(c.input, h, c.conf)
+				err = bits.Put(c.input, h, c.conf)
 				keys = h.Keys
 
 				if len(keys) < c.minKeys {
 					t.Errorf("expected at least '%d' keys, got: '%d'", c.minKeys, len(keys))
 				}
 			} else {
-				err = bits.Split(c.input, c.keyw, c.conf)
+				err = bits.Put(c.input, c.keyw, c.conf)
 			}
 
 			if err != nil {

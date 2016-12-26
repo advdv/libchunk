@@ -6,11 +6,11 @@ import (
 	"os"
 )
 
-//Join will read and decrypt chunks for keys provided by the key reader and write
+//Get will read and decrypt chunks for keys provided by the key reader and write
 //each chunk's contents to chunk writer 'cw' in order of key appearance. Chunks are
 //fetched concurrently (locally or remote) but are guaranteed to arrive in
 //order to writer 'cw' for assembly in the original format
-func Join(kr KeyReader, cw ChunkWriter, conf Config) error {
+func Get(kr KeyReader, cw ChunkWriter, conf Config) error {
 
 	//result of working the item
 	type result struct {
@@ -62,7 +62,7 @@ func Join(kr KeyReader, cw ChunkWriter, conf Config) error {
 	}
 
 	//fan-out concurrent work
-	itemCh := make(chan *item, conf.JoinConcurrency)
+	itemCh := make(chan *item, conf.GetConcurrency)
 	go func() {
 		defer close(itemCh)
 		pos := int64(0)

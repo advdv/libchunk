@@ -37,31 +37,31 @@ func BenchmarkConfigurations(b *testing.B) {
 			b.Run(fmt.Sprintf("%dMiB", s/1024/1024), func(b *testing.B) {
 				data := randb(s)
 				keys := []bits.K{}
-				b.Run("split", func(b *testing.B) {
+				b.Run("put", func(b *testing.B) {
 					keys = benchmarkBoltRandomWritesChunkHashEncrypt(b, data, conf)
 				})
 
-				b.Run("join", func(b *testing.B) {
-					benchmarkBoltRandomReadsJoinToFile(b, keys, data, conf)
+				b.Run("get", func(b *testing.B) {
+					benchmarkBoltRandomReadsGetToFile(b, keys, data, conf)
 				})
 
-				b.Run("push", func(b *testing.B) {
-					benchmarkBoltRandomReadsPushToLocalHTTP(b, keys, data, conf)
+				b.Run("mv", func(b *testing.B) {
+					benchmarkBoltRandomReadsMoveToLocalHTTP(b, keys, data, conf)
 				})
 
-				b.Run("join-from-remote", func(b *testing.B) {
-					benchmarkRemoteJoinToFile(b, data, conf)
+				b.Run("get-from-remote", func(b *testing.B) {
+					benchmarkRemoteGetToFile(b, data, conf)
 				})
 			})
 		}
 	})
 }
 
-func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf bits.Config) {
+func benchmarkRemoteGetToFile(b *testing.B, data []byte, conf bits.Config) {
 	keys := &bitskeys.MemIterator{}
 	store := bitsstore.NewMemStore()
 	input := randBytesInput(bytes.NewReader(data), secret)
-	err := bits.Split(input, keys, withStore(b, defaultConf(b, secret), store))
+	err := bits.Put(input, keys, withStore(b, defaultConf(b, secret), store))
 	if err != nil {
 		b.Fatalf("couldnt split for test prep: %v", err)
 	}
@@ -78,7 +78,7 @@ func benchmarkRemoteJoinToFile(b *testing.B, data []byte, conf bits.Config) {
 		}
 
 		defer os.Remove(outf.Name())
-		err = bits.Join(keys, outf, conf)
+		err = bits.Get(keys, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
@@ -92,7 +92,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf b
 	for i := 0; i < b.N; i++ {
 		input := randBytesInput(bytes.NewReader(data), secret)
 		h := &bitskeys.MemIterator{}
-		err := bits.Split(input, h, conf)
+		err := bits.Put(input, h, conf)
 
 		keys = h.Keys
 		if err != nil {
@@ -107,7 +107,7 @@ func benchmarkBoltRandomWritesChunkHashEncrypt(b *testing.B, data []byte, conf b
 	return keys
 }
 
-func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
+func benchmarkBoltRandomReadsGetToFile(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
@@ -119,7 +119,7 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []bits.K, data []byte
 		defer os.Remove(outf.Name())
 		iter := bitskeys.NewMemIterator()
 		iter.Keys = keys
-		err = bits.Join(iter, outf, conf)
+		err = bits.Get(iter, outf, conf)
 		outf.Close()
 		if err != nil {
 			b.Fatal(err)
@@ -127,13 +127,13 @@ func benchmarkBoltRandomReadsJoinToFile(b *testing.B, keys []bits.K, data []byte
 	}
 }
 
-func benchmarkBoltRandomReadsPushToLocalHTTP(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
+func benchmarkBoltRandomReadsMoveToLocalHTTP(b *testing.B, keys []bits.K, data []byte, conf bits.Config) {
 	b.ResetTimer()
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		iter := &bitskeys.MemIterator{Keys: keys}
 		h := &bitskeys.MemIterator{}
-		err := bits.Push(iter, h, conf)
+		err := bits.Move(iter, h, conf)
 		if err != nil {
 			b.Fatal(err)
 		}

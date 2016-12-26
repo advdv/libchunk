@@ -5,9 +5,10 @@ import (
 	"io"
 )
 
-//Push will attempt to move all keys read from key reader 'kr' to the remote
-//configured in Config 'conf' and outputs pushed keys to key writer 'kw'.
-func Push(kr KeyReader, kw KeyWriter, conf Config) error {
+//Move will attempt to move all keys read from key reader 'kr' to the
+//(remote)store configured in Config 'conf' and outputs pushed keys
+//to key writer 'kw'.
+func Move(kr KeyReader, kw KeyWriter, conf Config) error {
 
 	//result of working the item
 	type result struct {
@@ -64,7 +65,7 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 	}
 
 	//fan-out
-	itemCh := make(chan *item, conf.PushConcurrency)
+	itemCh := make(chan *item, conf.MoveConcurrency)
 	go func() {
 		defer close(itemCh)
 		for {

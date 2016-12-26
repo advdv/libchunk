@@ -144,14 +144,12 @@ type Config struct {
 	AEAD    cipher.AEAD
 	KeyHash KeyHash
 
-	SplitConcurrency int
-	PushConcurrency  int
-	JoinConcurrency  int
+	PutConcurrency  int
+	MoveConcurrency int
+	GetConcurrency  int
 
 	Stores StoreMap
 
-	// Store  Store
-	// Remote Remote
 	Index KeyIndex
 }
 
@@ -168,12 +166,12 @@ func DefaultConf(secret Secret) (conf Config, err error) {
 	}
 
 	return Config{
-		Secret:           secret,
-		SplitConcurrency: 64,
-		PushConcurrency:  64,
-		JoinConcurrency:  10,
-		AEAD:             aead,
-		Stores:           StoreMap{},
+		Secret:          secret,
+		PutConcurrency:  64,
+		MoveConcurrency: 64,
+		GetConcurrency:  10,
+		AEAD:            aead,
+		Stores:          StoreMap{},
 		KeyHash: func(b []byte) K {
 			return sha256.Sum256(b)
 		},

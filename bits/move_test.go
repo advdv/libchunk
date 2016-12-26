@@ -10,7 +10,7 @@ import (
 	"github.com/advanderveer/libchunk/bits/keys"
 )
 
-func TestPush(t *testing.T) {
+func TestMove(t *testing.T) {
 	conf := withTmpBoltStore(t, withS3Remote(t, defaultConf(t, secret), nil))
 	cases := []struct {
 		name  string
@@ -41,14 +41,14 @@ func TestPush(t *testing.T) {
 			krw := c.keyrw
 			if c.input != nil {
 
-				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
+				err := bits.Put(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
 			}
 
 			firstH := &bitskeys.MemIterator{}
-			err := bits.Push(krw, firstH, c.conf)
+			err := bits.Move(krw, firstH, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("pushing shouldnt fail but got: %v", err)
@@ -68,7 +68,7 @@ func TestPush(t *testing.T) {
 			if c.conf.Index != nil {
 				secondH := &bitskeys.MemIterator{}
 				krw.Reset()
-				err = bits.Push(krw, secondH, c.conf)
+				err = bits.Move(krw, secondH, c.conf)
 				if err != nil {
 					t.Errorf("second (index test) push failed: %v", err)
 				}

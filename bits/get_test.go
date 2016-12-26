@@ -14,12 +14,12 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-func TestJoinFromRemote(t *testing.T) {
+func TestGetFromRemote(t *testing.T) {
 	data := randb(9 * 1024 * 1024)
 	keys := bitskeys.NewMemIterator()
 	store := bitsstore.NewMemStore()
 	input := randBytesInput(bytes.NewReader(data), secret)
-	err := bits.Split(input, keys, withStore(t, defaultConf(t, secret), store))
+	err := bits.Put(input, keys, withStore(t, defaultConf(t, secret), store))
 	if err != nil {
 		t.Fatalf("couldnt split for test prep: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestJoinFromRemote(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			err := bits.Join(c.kr, buf, c.conf)
+			err := bits.Get(c.kr, buf, c.conf)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,8 +50,8 @@ func TestJoinFromRemote(t *testing.T) {
 	}
 }
 
-//TestJoinFromLocal tests splitting of data streams
-func TestJoinFromLocal(t *testing.T) {
+//TestGetFromLocal tests splitting of data streams
+func TestGetFromLocal(t *testing.T) {
 	conf := withTmpBoltStore(t, defaultConf(t, secret))
 
 	cases := []struct {
@@ -145,7 +145,7 @@ func TestJoinFromLocal(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			krw := c.keyrw
 			if c.input != nil {
-				err := bits.Split(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
+				err := bits.Put(randBytesInput(bytes.NewBuffer(c.input), secret), krw, c.conf)
 				if err != nil {
 					t.Fatalf("failed to spit first: %v", err)
 				}
@@ -166,7 +166,7 @@ func TestJoinFromLocal(t *testing.T) {
 				output = bytes.NewBuffer(nil)
 			}
 
-			err := bits.Join(krw, output, c.conf)
+			err := bits.Get(krw, output, c.conf)
 			if err != nil {
 				if c.expectedErr == "" {
 					t.Errorf("joining shouldnt fail but got: %v", err)
