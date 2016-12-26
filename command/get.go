@@ -15,29 +15,29 @@ import (
 	"github.com/mitchellh/cli"
 )
 
-//SplitOpts describes command options
-type SplitOpts struct {
-	SecretOpts
-	ChunkOpts
+//GetOpts describes command options
+type GetOpts struct {
 	KeyOpts
+	ChunkOpts
+	SecretOpts
 	LocalStoreOpts
 }
 
-//Split command
-type Split struct {
+//Get command
+type Get struct {
 	ui     cli.Ui
-	opts   *SplitOpts
+	opts   *GetOpts
 	parser *flags.Parser
 }
 
-//SplitFactory returns a factory method for the split command
-func SplitFactory() func() (cmd cli.Command, err error) {
-	cmd := &Split{
+//GetFactory returns a factory method for the join command
+func GetFactory() func() (cmd cli.Command, err error) {
+	cmd := &Get{
+		opts: &GetOpts{},
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
-		opts: &SplitOpts{},
 	}
 
-	cmd.parser = flags.NewNamedParser("bits split <FILE>", flags.Default)
+	cmd.parser = flags.NewNamedParser("bits join", flags.Default)
 	cmd.parser.AddGroup("options", "options", cmd.opts)
 	return func() (cli.Command, error) {
 		return cmd, nil
@@ -47,7 +47,7 @@ func SplitFactory() func() (cmd cli.Command, err error) {
 // Help returns long-form help text that includes the command-line
 // usage, a brief few sentences explaining the function of the command,
 // and the complete list of flags the command accepts.
-func (cmd *Split) Help() string {
+func (cmd *Get) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
 	buf2 := bytes.NewBuffer(nil)
@@ -59,25 +59,24 @@ func (cmd *Split) Help() string {
 
 	return fmt.Sprintf(`
   %s. By default
-  reads the input stream from STDIN and writes resulting content-based
-  chunk keys to STDOUT, if the first arguments it present the command
-  will open it as a file and use this as input instead of STDIN. Split
-  will not store a chunk again if one with the same key is already stored
-  locally, effectively de-duplicating data stored with the same secret.
+  reads keys over STDIN and writes output data to STDOUT in the
+  order each key was provided. Get will first attempt to read
+  requested chunks from the local store, if they cannot be found
+  here it will try to fetch chunks from the configured remote.
 
 %s`, cmd.Synopsis(), buf2.String())
 }
 
 // Synopsis returns a one-line, short synopsis of the command.
 // This should be less than 50 characters ideally.
-func (cmd *Split) Synopsis() string {
-	return "turns a stream of bytes into locally-stored chunks"
+func (cmd *Get) Synopsis() string {
+	return "takes a serie of keys and outputs associated chunks"
 }
 
 // Run runs the actual command with the given CLI instance and
 // command-line arguments. It returns the exit status when it is
 // finished.
-func (cmd *Split) Run(args []string) int {
+func (cmd *Get) Run(args []string) int {
 	a, err := cmd.parser.ParseArgs(args)
 	if err != nil {
 		cmd.ui.Error(err.Error())
@@ -93,7 +92,7 @@ func (cmd *Split) Run(args []string) int {
 }
 
 //DoRun is called by run and allows an error to be returned
-func (cmd *Split) DoRun(args []string) (err error) {
+func (cmd *Get) DoRun(args []string) (err error) {
 	rc := os.Stdin
 	if len(args) > 0 {
 		rc, err = os.Open(args[0])
@@ -117,17 +116,12 @@ func (cmd *Split) DoRun(args []string) (err error) {
 		return err
 	}
 
-	kw, err := cmd.opts.KeyOpts.CreateKeyWriter(wc)
+	kr, err := cmd.opts.KeyOpts.CreateKeyReader(rc)
 	if err != nil {
 		return err
 	}
 
-	cr, err := cmd.opts.ChunkOpts.CreateChunkReader(rc, secret)
-	if err != nil {
-		return err
-	}
-
-	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
+	cw, err := cmd.opts.ChunkOpts.CreateChunkWriter(wc)
 	if err != nil {
 		return err
 	}
@@ -137,6 +131,5 @@ func (cmd *Split) DoRun(args []string) (err error) {
 		return err
 	}
 
-	conf.Store = store
-	return bits.Split(cr, kw, conf)
+	return bits.Get(kr, cw, conf)
 }

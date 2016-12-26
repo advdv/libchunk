@@ -76,8 +76,6 @@ func TestMove(t *testing.T) {
 				if len(secondH.Keys) >= len(firstH.Keys) {
 					t.Error("expected some keys to be skipped on second push")
 				}
-
-				//@TODO measure&test how much was actually put?
 			}
 		})
 	}

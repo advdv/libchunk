@@ -8,33 +8,31 @@ import (
 
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/keys"
-	"github.com/advanderveer/libchunk/bits/remote"
 	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mitchellh/cli"
 )
 
-//PushOpts describes command options
-type PushOpts struct {
+//MvOpts describes command options
+type MvOpts struct {
 	KeyOpts
 	SecretOpts
 	LocalStoreOpts
-	RemoteOpts
 }
 
-//Push command
-type Push struct {
+//Mv command
+type Mv struct {
 	ui     cli.Ui
-	opts   *PushOpts
+	opts   *MvOpts
 	parser *flags.Parser
 }
 
-//PushFactory returns a factory method for the split command
-func PushFactory() func() (cmd cli.Command, err error) {
-	cmd := &Push{
+//MvFactory returns a factory method for the split command
+func MvFactory() func() (cmd cli.Command, err error) {
+	cmd := &Mv{
 		ui:   &cli.BasicUi{Reader: os.Stdin, Writer: os.Stderr},
-		opts: &PushOpts{},
+		opts: &MvOpts{},
 	}
 
 	cmd.parser = flags.NewNamedParser("bits push", flags.Default)
@@ -47,15 +45,14 @@ func PushFactory() func() (cmd cli.Command, err error) {
 // Help returns long-form help text that includes the command-line
 // usage, a brief few sentences explaining the function of the command,
 // and the complete list of flags the command accepts.
-func (cmd *Push) Help() string {
+func (cmd *Mv) Help() string {
 	buf := bytes.NewBuffer(nil)
 	cmd.parser.WriteHelp(buf)
 	buf2 := bytes.NewBuffer(nil)
 	template.Must(template.New("help").Parse(buf.String())).Execute(buf2, struct {
 		SupportedStores    []string
-		SupportedRemotes   []string
 		SupportedExchanges []string
-	}{bitsstore.SupportedStores, bitsremote.SupportedRemotes, bitskeys.SupportedKeyFormats})
+	}{bitsstore.SupportedStores, bitskeys.SupportedKeyFormats})
 
 	return fmt.Sprintf(`
   %s.
@@ -71,14 +68,14 @@ func (cmd *Push) Help() string {
 
 // Synopsis returns a one-line, short synopsis of the command.
 // This should be less than 50 characters ideally.
-func (cmd *Push) Synopsis() string {
+func (cmd *Mv) Synopsis() string {
 	return "moves chunks from the local store to a remote location"
 }
 
 // Run runs the actual command with the given CLI instance and
 // command-line arguments. It returns the exit status when it is
 // finished.
-func (cmd *Push) Run(args []string) int {
+func (cmd *Mv) Run(args []string) int {
 	a, err := cmd.parser.ParseArgs(args)
 	if err != nil {
 		cmd.ui.Error(err.Error())
@@ -94,13 +91,8 @@ func (cmd *Push) Run(args []string) int {
 }
 
 //DoRun is called by run and allows an error to be returned
-func (cmd *Push) DoRun(args []string) error {
+func (cmd *Mv) DoRun(args []string) error {
 	secret, err := cmd.opts.SecretOpts.CreateSecret(cmd.ui)
-	if err != nil {
-		return err
-	}
-
-	store, err := cmd.opts.LocalStoreOpts.CreateStore(secret)
 	if err != nil {
 		return err
 	}
@@ -134,17 +126,11 @@ func (cmd *Push) DoRun(args []string) error {
 		return err
 	}
 
-	remote, err := cmd.opts.RemoteOpts.CreateRemote(secret)
-	if err != nil {
-		return err
-	}
-
 	conf, err := bits.DefaultConf(secret)
 	if err != nil {
 		return err
 	}
 
-	conf.Remote = remote
-	conf.Store = store
-	return bits.Push(kr, kw, conf)
+	//@TODO configure dst/src stores
+	return bits.Move(kr, kw, conf)
 }

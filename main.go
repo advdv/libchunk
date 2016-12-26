@@ -18,9 +18,9 @@ func main() {
 	c := cli.NewCLI(name, version)
 	c.Args = os.Args[1:]
 	c.Commands = map[string]cli.CommandFactory{
-		"split": command.SplitFactory(),
-		"join":  command.JoinFactory(),
-		"push":  command.PushFactory(),
+		"put": command.PutFactory(),
+		"get": command.GetFactory(),
+		"mv":  command.MvFactory(),
 	}
 
 	status, err := c.Run()
