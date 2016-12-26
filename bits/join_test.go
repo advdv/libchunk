@@ -119,7 +119,12 @@ func TestJoinFromLocal(t *testing.T) {
 		nil,
 		bitskeys.NewMemIterator(),
 		func(k bits.K, conf bits.Config) {
-			switch store := conf.Stores.GetLocal().(type) {
+			dst, err := conf.Stores.PutDst() //get the store used for putting chunks
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			switch store := dst.(type) {
 			case *bitsstore.BoltStore:
 				err := store.DB.Update(func(tx *bolt.Tx) error {
 					return tx.Bucket(bitsstore.BoltChunkBucket).Put(k[:], []byte{0x00})
@@ -129,7 +134,7 @@ func TestJoinFromLocal(t *testing.T) {
 					t.Errorf("failed to corrupt store: %v", err)
 				}
 			default:
-				t.Fatalf("cant corrupt '%T'", conf.Stores.GetLocal())
+				t.Fatalf("cant corrupt '%T'", dst)
 			}
 		},
 		conf,

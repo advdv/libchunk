@@ -1,4 +1,4 @@
-package bitsremote
+package bitsstore
 
 import (
 	"bytes"

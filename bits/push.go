@@ -21,11 +21,19 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 		err   error
 	}
 
-	//concurrent work
-	src := conf.Stores.GetLocal() //@TODO make sure this doesnt panic
-	dst := conf.Stores.GetRemote()
-	work := func(it *item) {
+	//setup stores based on configuration
+	src, err := conf.Stores.MoveSrc()
+	if err != nil {
+		return fmt.Errorf("couldnt get store to move from: %v", err)
+	}
 
+	dst, err := conf.Stores.MoveDst()
+	if err != nil {
+		return fmt.Errorf("couldnt get store to move to: %v", err)
+	}
+
+	//concurrent work
+	work := func(it *item) {
 		chunk, err := src.Get(it.key)
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to get chunk '%s' from store: %v", it.key, err)}
@@ -41,12 +49,13 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 		it.resCh <- &result{}
 	}
 
-	//if the dst is an indexable store and an index is configured
+	//if the dst is an remote store and an index is configured
+	//fill the index first so we can prevent unnessary work
 	var idx KeyIndex
-	if indexable, ok := dst.(IndexableStore); ok {
+	if remote, ok := dst.(RemoteStore); ok {
 		if conf.Index != nil {
 			idx = conf.Index
-			err := indexable.Index(idx)
+			err := remote.Index(idx)
 			if err != nil {
 				return fmt.Errorf("failed to index remote: %v", err)
 			}

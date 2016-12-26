@@ -47,15 +47,8 @@ type KeyIndex interface {
 	Has(k K) bool
 }
 
-//IndexableStore stores chunks such that an indexing mechanism
-//that allow clients to skip PUT calls altogether is economic
-type IndexableStore interface {
-	Index(KeyWriter) error
-	Store //but it is still a store
-}
-
-//Store holds chunks locally and throught is expected to be fast enough
-//to not require a mechanism for skipping put calls
+//Store holds chunks and is expected to have such a low latency that
+//checking existence before put call is economic per key
 type Store interface {
 
 	//will do nothing if exists, must be atomic
@@ -63,6 +56,13 @@ type Store interface {
 
 	//returns os.NotExist if the chunk doesnt exist
 	Get(k K) (chunk []byte, err error)
+}
+
+//RemoteStore stores chunks at a distant location such that an indexing
+//mechanism is economic to prevent movement of chunks that are already present
+type RemoteStore interface {
+	Index(KeyWriter) error
+	Store
 }
 
 //KeyHash turns a arbitrary sized chunk into content-based key
@@ -98,24 +98,44 @@ func DecodeKey(b []byte) (k K, err error) {
 //of stores for various purposes thoughout our code
 type StoreMap map[string]Store
 
-//GetOrdered returns an ordered list of stores
-func (sm StoreMap) GetOrdered() (stores []Store) {
+//GetSrcs returns an ordered list of stores for getting chunks
+//for the current store configuration. this can be a default or
+//explictely overwitten by the user
+//@TODO store by 'localness' or 'likelyhood of having chunks'
+func (sm StoreMap) GetSrcs() (stores []Store) {
 	for _, s := range sm {
 		stores = append(stores, s)
 	}
 	return stores
 }
 
-//GetLocal returns the local store or panic, the primary
-//remote should always be present
-func (sm StoreMap) GetLocal() (store Store) {
-	return sm["local"]
+//PutDst returns a store that can be used for putting chunks
+//in the current store configuration, this can either be the default
+//or overwitten by user configuration
+func (sm StoreMap) PutDst() (store Store, err error) {
+	if s, ok := sm["local"]; ok {
+		return s, nil
+	}
+
+	return nil, fmt.Errorf("couldnt get store")
 }
 
-//GetRemote returns the primary remote store or panic, the primary
-//remote should always be present
-func (sm StoreMap) GetRemote() (store Store) {
-	return sm["remote"]
+//MoveSrc returns a store from which chunks will be moved from
+//in the current store configuration. this can either be the default
+//or the store overwritten by user configuration
+func (sm StoreMap) MoveSrc() (store Store, err error) {
+	return sm.PutDst() //@TODO is this always the dst of the put
+}
+
+//MoveDst returns a store to which chunks will be moved for the
+//current store configration. this can be the default or overwitten
+//by user preference
+func (sm StoreMap) MoveDst() (store Store, err error) {
+	if s, ok := sm["remote"]; ok {
+		return s, nil
+	}
+
+	return nil, fmt.Errorf("couldnt get store")
 }
 
 //Config describes how the library's Split, Join and Push behaves

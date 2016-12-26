@@ -25,8 +25,13 @@ func Split(cr ChunkReader, kw KeyWriter, conf Config) error {
 		err   error
 	}
 
+	//place where we're gonna put chunks
+	dst, err := conf.Stores.PutDst()
+	if err != nil {
+		return fmt.Errorf("failed to get a store to put chunks in: %v", err)
+	}
+
 	//concurrent work
-	dst := conf.Stores.GetLocal() //@TODO make sure this doesnt panic
 	work := func(it *item) {
 		res := &result{}
 		res.key = conf.KeyHash(it.chunk)                            //Hash

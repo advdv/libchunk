@@ -1,4 +1,4 @@
-package bitsremote_test
+package bitsstore_test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/keys"
-	"github.com/advanderveer/libchunk/bits/remote"
+	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/smartystreets/go-aws-auth"
 )
@@ -30,7 +30,7 @@ func randb(size int64) []byte {
 	return b
 }
 
-func envRemote(t *testing.T) *bitsremote.S3Remote {
+func envRemote(t *testing.T) *bitsstore.S3Remote {
 	creds := awsauth.Credentials{
 		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
@@ -42,7 +42,7 @@ func envRemote(t *testing.T) *bitsremote.S3Remote {
 		return nil
 	}
 
-	return bitsremote.NewS3Remote("https", host, "tests", creds.AccessKeyID, creds.SecretAccessKey)
+	return bitsstore.NewS3Remote("https", host, "tests", creds.AccessKeyID, creds.SecretAccessKey)
 }
 
 func TestActualS3PutGet(t *testing.T) {
@@ -50,7 +50,7 @@ func TestActualS3PutGet(t *testing.T) {
 		t.Skip("skipped in short mode")
 	}
 
-	var store bits.IndexableStore
+	var store bits.RemoteStore
 	store = envRemote(t)
 
 	input := randb(4 * 1024 * 1024)
