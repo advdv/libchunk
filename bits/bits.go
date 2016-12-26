@@ -47,9 +47,9 @@ type KeyIndex interface {
 	Has(k K) bool
 }
 
-//Remote stores chunks remotely but should provide an indexing mechanism
-//that allow clients to skip PUT calls altogether
-type Remote interface {
+//IndexableStore stores chunks such that an indexing mechanism
+//that allow clients to skip PUT calls altogether is economic
+type IndexableStore interface {
 	Index(KeyWriter) error
 	Store //but it is still a store
 }
@@ -94,6 +94,30 @@ func DecodeKey(b []byte) (k K, err error) {
 	return k, nil
 }
 
+//StoreMap hols our store configurations and allows retrieval
+//of stores for various purposes thoughout our code
+type StoreMap map[string]Store
+
+//GetOrdered returns an ordered list of stores
+func (sm StoreMap) GetOrdered() (stores []Store) {
+	for _, s := range sm {
+		stores = append(stores, s)
+	}
+	return stores
+}
+
+//GetLocal returns the local store or panic, the primary
+//remote should always be present
+func (sm StoreMap) GetLocal() (store Store) {
+	return sm["local"]
+}
+
+//GetRemote returns the primary remote store or panic, the primary
+//remote should always be present
+func (sm StoreMap) GetRemote() (store Store) {
+	return sm["remote"]
+}
+
 //Config describes how the library's Split, Join and Push behaves
 type Config struct {
 	Secret  Secret
@@ -104,9 +128,11 @@ type Config struct {
 	PushConcurrency  int
 	JoinConcurrency  int
 
-	Store  Store
-	Remote Remote
-	Index  KeyIndex
+	Stores StoreMap
+
+	// Store  Store
+	// Remote Remote
+	Index KeyIndex
 }
 
 //DefaultConf sets up sensible configs
@@ -127,6 +153,7 @@ func DefaultConf(secret Secret) (conf Config, err error) {
 		PushConcurrency:  64,
 		JoinConcurrency:  10,
 		AEAD:             aead,
+		Stores:           StoreMap{},
 		KeyHash: func(b []byte) K {
 			return sha256.Sum256(b)
 		},

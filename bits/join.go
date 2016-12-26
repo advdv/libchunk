@@ -28,9 +28,10 @@ func Join(kr KeyReader, cw ChunkWriter, conf Config) error {
 
 	//work is run concurrently
 	work := func(it *item) {
-		getters := []interface {
-			Get(k K) ([]byte, error)
-		}{conf.Store, conf.Remote}
+		// getters := []interface {
+		// 	Get(k K) ([]byte, error)
+		// }{conf.Store, conf.Remote}
+		getters := conf.Stores.GetOrdered()
 
 		//ask each key container if it has one
 		var chunk []byte

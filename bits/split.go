@@ -26,11 +26,12 @@ func Split(cr ChunkReader, kw KeyWriter, conf Config) error {
 	}
 
 	//concurrent work
+	dst := conf.Stores.GetLocal() //@TODO make sure this doesnt panic
 	work := func(it *item) {
 		res := &result{}
 		res.key = conf.KeyHash(it.chunk)                            //Hash
 		encrypted := conf.AEAD.Seal(nil, res.key[:], it.chunk, nil) //Encrypt
-		res.err = conf.Store.Put(res.key, encrypted)                //Store
+		res.err = dst.Put(res.key, encrypted)                       //Store
 		it.resCh <- res                                             //Output
 	}
 

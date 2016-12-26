@@ -22,14 +22,17 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 	}
 
 	//concurrent work
+	src := conf.Stores.GetLocal() //@TODO make sure this doesnt panic
+	dst := conf.Stores.GetRemote()
 	work := func(it *item) {
-		chunk, err := conf.Store.Get(it.key)
+
+		chunk, err := src.Get(it.key)
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to get chunk '%s' from store: %v", it.key, err)}
 			return
 		}
 
-		err = conf.Remote.Put(it.key, chunk)
+		err = dst.Put(it.key, chunk)
 		if err != nil {
 			it.resCh <- &result{fmt.Errorf("failed to put chunk '%s' to remote: %v", it.key, err)}
 			return
@@ -38,16 +41,18 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 		it.resCh <- &result{}
 	}
 
-	//if an index is configured, update it such
-	//that we can skip some pushes altogether
-	if conf.Index != nil {
-		err := conf.Remote.Index(conf.Index)
-		if err != nil {
-			return fmt.Errorf("failed to index remote: %v", err)
+	//if the dst is an indexable store and an index is configured
+	var idx KeyIndex
+	if indexable, ok := dst.(IndexableStore); ok {
+		if conf.Index != nil {
+			idx = conf.Index
+			err := indexable.Index(idx)
+			if err != nil {
+				return fmt.Errorf("failed to index remote: %v", err)
+			}
 		}
+		//@TODO always create memory index if the store is indexable
 	}
-
-	fmt.Println(conf.Remote)
 
 	//fan-out
 	itemCh := make(chan *item, conf.PushConcurrency)
@@ -68,7 +73,7 @@ func Push(kr KeyReader, kw KeyWriter, conf Config) error {
 
 			//we may be able to skip work altogether if an index
 			//is present and it contains the key we intent to work on
-			if conf.Index != nil && conf.Index.Has(k) {
+			if idx != nil && idx.Has(k) {
 				continue
 			}
 

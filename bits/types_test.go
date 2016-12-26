@@ -89,7 +89,7 @@ func defaultConf(t quiter, secret bits.Secret) bits.Config {
 }
 
 func withStore(t quiter, conf bits.Config, store bits.Store) bits.Config {
-	conf.Store = store
+	conf.Stores["local"] = store
 	return conf
 }
 
@@ -113,8 +113,8 @@ func withIndex(t quiter, conf bits.Config, index bits.KeyIndex) bits.Config {
 	return conf
 }
 
-func withRemote(t quiter, conf bits.Config, remote bits.Remote) bits.Config {
-	conf.Remote = remote
+func withRemote(t quiter, conf bits.Config, store bits.Store) bits.Config {
+	conf.Stores["remote"] = store
 	return conf
 }
 

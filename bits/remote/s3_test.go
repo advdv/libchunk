@@ -50,18 +50,18 @@ func TestActualS3PutGet(t *testing.T) {
 		t.Skip("skipped in short mode")
 	}
 
-	var remote bits.Remote
-	remote = envRemote(t)
+	var store bits.IndexableStore
+	store = envRemote(t)
 
 	input := randb(4 * 1024 * 1024)
 	k := bits.K(sha256.Sum256(input))
 
-	err := remote.Put(k, input)
+	err := store.Put(k, input)
 	if err != nil {
 		t.Fatalf("failed to put chunk '%s': %v", k, err)
 	}
 
-	output, err := remote.Get(k)
+	output, err := store.Get(k)
 	if err != nil {
 		t.Fatalf("failed to get chunk '%s': %v", k, err)
 	}
@@ -71,7 +71,7 @@ func TestActualS3PutGet(t *testing.T) {
 	}
 
 	iter := bitskeys.NewMemIterator()
-	err = remote.Index(iter)
+	err = store.Index(iter)
 	if err != nil {
 		t.Fatalf("key indexing of remote shouldnt fail: %v", err)
 	}
