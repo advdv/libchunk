@@ -18,7 +18,6 @@ import (
 type MvOpts struct {
 	KeyOpts
 	SecretOpts
-	LocalStoreOpts
 }
 
 //Mv command

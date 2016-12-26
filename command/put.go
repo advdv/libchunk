@@ -20,7 +20,6 @@ type PutOpts struct {
 	SecretOpts
 	ChunkOpts
 	KeyOpts
-	LocalStoreOpts
 }
 
 //Put command

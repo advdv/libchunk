@@ -20,7 +20,6 @@ type GetOpts struct {
 	KeyOpts
 	ChunkOpts
 	SecretOpts
-	LocalStoreOpts
 }
 
 //Get command

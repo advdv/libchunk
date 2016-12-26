@@ -1,20 +1,16 @@
 package command
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/advanderveer/libchunk/bits"
 	"github.com/advanderveer/libchunk/bits/chunks"
 	"github.com/advanderveer/libchunk/bits/keys"
-	"github.com/advanderveer/libchunk/bits/store"
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/cli"
-	"github.com/mitchellh/go-homedir"
 )
 
 //ChunkOpts configures how we will receive chunks
@@ -115,38 +111,38 @@ func (opt *SecretOpts) CreateSecret(ui cli.Ui) (secret bits.Secret, err error) {
 }
 
 //LocalStoreOpts documents local store option used by various commands
-type LocalStoreOpts struct {
-	StoreDir  string `short:"l" long:"store-dir" description:"directory in which chunks are stored locally, defaults to '.bits' in the user's home directory" value-name:"DIR"`
-	StoreType string `long:"store" default:"bolt" description:"specify what type of store is used for keeping local stored chunks, supports: {{.SupportedStores}}" value-name:"bolt"`
-}
+// type LocalStoreOpts struct {
+// 	StoreDir  string `short:"l" long:"store-dir" description:"directory in which chunks are stored locally, defaults to '.bits' in the user's home directory" value-name:"DIR"`
+// 	StoreType string `long:"store" default:"bolt" description:"specify what type of store is used for keeping local stored chunks, supports: {{.SupportedStores}}" value-name:"bolt"`
+// }
 
-//CreateStore uses the command line options to open or create a local store
-//for usage by the bits library based on the configured secret. Errors should should focus on usability
-func (opts *LocalStoreOpts) CreateStore(secret bits.Secret) (s bits.Store, err error) {
-	if opts.StoreDir == "" {
-		opts.StoreDir, err = homedir.Dir()
-		if err != nil {
-			return s, fmt.Errorf("couldnt determine users HOME directory for default --store-dir: %v", err)
-		}
-
-		opts.StoreDir = filepath.Join(opts.StoreDir, ".bits")
-	}
-
-	//setup secret specific directory
-	hash := sha256.Sum256(secret[:])
-	storeDir := filepath.Join(opts.StoreDir, fmt.Sprintf("%x", hash))
-	err = os.MkdirAll(storeDir, 0700)
-	if err != nil {
-		return s, fmt.Errorf("failed to create secret specific directory for local storage: %v", err)
-	}
-
-	s, err = bitsstore.CreateStore(opts.StoreType, filepath.Join(storeDir, "db.bolt"))
-	if err != nil {
-		return s, fmt.Errorf("failed to create store with these options: %v", err)
-	}
-
-	return s, nil
-}
+// //CreateStore uses the command line options to open or create a local store
+// //for usage by the bits library based on the configured secret. Errors should should focus on usability
+// func (opts *LocalStoreOpts) CreateStore(secret bits.Secret) (s bits.Store, err error) {
+// 	if opts.StoreDir == "" {
+// 		opts.StoreDir, err = homedir.Dir()
+// 		if err != nil {
+// 			return s, fmt.Errorf("couldnt determine users HOME directory for default --store-dir: %v", err)
+// 		}
+//
+// 		opts.StoreDir = filepath.Join(opts.StoreDir, ".bits")
+// 	}
+//
+// 	//setup secret specific directory
+// 	hash := sha256.Sum256(secret[:])
+// 	storeDir := filepath.Join(opts.StoreDir, fmt.Sprintf("%x", hash))
+// 	err = os.MkdirAll(storeDir, 0700)
+// 	if err != nil {
+// 		return s, fmt.Errorf("failed to create secret specific directory for local storage: %v", err)
+// 	}
+//
+// 	s, err = bitsstore.CreateStore(opts.StoreType, filepath.Join(storeDir, "db.bolt"))
+// 	if err != nil {
+// 		return s, fmt.Errorf("failed to create store with these options: %v", err)
+// 	}
+//
+// 	return s, nil
+// }
 
 // //RemoteOpts configures the remote used by various commands
 // type RemoteOpts struct {
