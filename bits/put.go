@@ -1,6 +1,7 @@
 package bits
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 )
@@ -34,10 +35,16 @@ func Put(cr ChunkReader, kw KeyWriter, conf Config) error {
 	//concurrent work
 	work := func(it *item) {
 		res := &result{}
-		res.key = conf.KeyHash(it.chunk)                            //Hash
-		encrypted := conf.AEAD.Seal(nil, res.key[:], it.chunk, nil) //Encrypt
-		res.err = dst.Put(res.key, encrypted)                       //Store
-		it.resCh <- res                                             //Output
+		res.key = conf.KeyHash(it.chunk) //Hash
+		nonce := make([]byte, conf.AEAD.NonceSize())
+		if _, res.err = rand.Read(nonce); res.err != nil {
+			it.resCh <- res
+			return
+		}
+
+		encrypted := conf.AEAD.Seal(nil, nonce, it.chunk, nil)  //Encrypt
+		res.err = dst.Put(res.key, append(nonce, encrypted...)) //Store
+		it.resCh <- res                                         //Output
 	}
 
 	//fan out, closes channels when unable to perform more work

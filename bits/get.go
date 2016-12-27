@@ -56,8 +56,13 @@ func Get(kr KeyReader, cw ChunkWriter, conf Config) error {
 			return
 		}
 
+		if len(chunk) < conf.AEAD.NonceSize() {
+			it.resCh <- &result{nil, fmt.Errorf("encrypted chunk is too small (must be at least %d long): authentication failed", conf.AEAD.NonceSize())}
+			return
+		}
+
 		res := &result{}
-		res.chunk, res.err = conf.AEAD.Open(nil, it.key[:], chunk, nil)
+		res.chunk, res.err = conf.AEAD.Open(nil, chunk[:conf.AEAD.NonceSize()], chunk[conf.AEAD.NonceSize():], nil)
 		it.resCh <- res
 	}
 
